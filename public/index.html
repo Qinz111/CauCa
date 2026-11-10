@@ -1,0 +1,3291 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport"
+    content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#07141b">
+  <title>Fishing Live — TikTok Stream View</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #040d12;
+      color: #eff8f7;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+
+    #appWrapper {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: #07141b;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Màn hình luôn tràn viền 100% chuẩn livestream dọc TikTok / OBS, không viền đen, không tai thỏ */
+    #phoneFrame {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      max-width: none !important;
+      max-height: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      border: none !important;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #07141b;
+    }
+
+    #phoneSpeaker {
+      display: none !important;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .glass {
+      background: linear-gradient(135deg, rgba(11, 30, 38, 0.85), rgba(12, 37, 43, 0.68));
+      border: 1px solid rgba(199, 245, 236, 0.15);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(14px);
+    }
+
+    .title-glow {
+      text-shadow: 0 0 20px rgba(112, 228, 196, 0.55);
+    }
+
+    .toast {
+      animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1), toastOut 0.35s ease-in 2.4s forwards;
+      transition: all 0.25s ease-out;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes toastOut {
+      to {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.96);
+      }
+    }
+
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+
+    /* Podium Bục Vinh Danh Top 3 */
+    .podium-gold {
+      background: linear-gradient(180deg, rgba(255, 215, 0, 0.32) 0%, rgba(160, 110, 5, 0.45) 100%);
+      border: 1px solid rgba(255, 225, 75, 0.7);
+      box-shadow: 0 0 25px rgba(255, 215, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .podium-silver {
+      background: linear-gradient(180deg, rgba(226, 232, 240, 0.28) 0%, rgba(100, 116, 139, 0.4) 100%);
+      border: 1px solid rgba(241, 245, 249, 0.55);
+      box-shadow: 0 0 18px rgba(203, 213, 225, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .podium-bronze {
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.26) 0%, rgba(146, 64, 14, 0.38) 100%);
+      border: 1px solid rgba(251, 191, 36, 0.55);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .crown-glow {
+      filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.85));
+      animation: crownBob 2.4s infinite ease-in-out;
+    }
+
+    @keyframes crownBob {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-4px) rotate(4deg); }
+    }
+
+    /* Animation Bảng Thông Báo Câu Được Cá */
+    @keyframes catchBoardIn {
+      0% { opacity: 0; transform: translateY(-12px) scale(0.92); }
+      60% { opacity: 1; transform: translateY(2px) scale(1.02); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes catchBoardOut {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-10px) scale(0.92); }
+    }
+
+    .catch-board-animate-in {
+      animation: catchBoardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .catch-board-animate-out {
+      animation: catchBoardOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .glow-shimmer {
+      background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 100%);
+      background-size: 200% 100%;
+      animation: shimmerMove 2.5s infinite linear;
+    }
+
+    @keyframes shimmerMove {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+  </style>
+</head>
+
+<body class="phone-mode">
+  <div id="appWrapper">
+    <div id="phoneFrame" class="relative bg-[#07141b] select-none">
+
+      <!-- Main Game Canvas -->
+      <canvas id="scene" aria-label="Cảnh game câu cá"></canvas>
+
+      <!-- Top Header Navigation (Viewer HUD) -->
+      <header
+        class="absolute top-2.5 sm:top-4 inset-x-2.5 sm:inset-x-4 flex items-center justify-between pointer-events-none z-30 pt-1">
+        <!-- Left: Live Room Title & Live Pulse Badge -->
+        <div
+          class="glass rounded-2xl px-2.5 py-1.5 flex items-center gap-2 pointer-events-auto shadow-xl border border-white/10">
+          <div
+            class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-[9px] font-black text-rose-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-500 -ml-2.5"></span>
+            <span>LIVE</span>
+          </div>
+          <div class="leading-tight">
+            <div class="text-[8px] uppercase tracking-wider text-emerald-200/60 font-bold">TikTok Live Game</div>
+            <div class="title-glow text-xs sm:text-sm font-black tracking-tight text-white flex items-center gap-1">
+              <span>BỜ CÂU</span><span class="text-emerald-300">BÌNH YÊN</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Action Buttons (Nút BXH) -->
+        <div class="flex items-center gap-1.5 pointer-events-auto">
+          <!-- Nút Bảng Xếp Hạng -->
+          <button id="trophyBtn" title="Xem Bảng Vinh Danh Top Cần Thủ & Top Ủng Hộ"
+            class="glass rounded-2xl px-2.5 py-1.5 flex items-center gap-1 text-xs hover:bg-white/15 transition-all text-amber-200 font-bold shadow-xl border border-amber-400/40 bg-amber-500/15 active:scale-95">
+            <span class="text-sm">🏆</span>
+            <span class="text-[11px]">BXH</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- DOM Audio Element chuyên dụng phát TTS -->
+      <audio id="masterTtsAudio" preload="auto" class="hidden"></audio>
+
+      <!-- Left Top Priority Alerts & Queue Container (Tách biệt cột trái, tuyệt đối không đè BXH bên phải) -->
+      <div
+        class="absolute top-14 sm:top-16 left-2.5 sm:left-3.5 z-30 pointer-events-none flex flex-col items-start gap-1.5 max-w-[calc(100%-180px)] sm:max-w-[calc(100%-200px)]">
+        <!-- Spotlight Large Gift Queue Banner -->
+        <div id="spotlightQueueBanner"
+          class="hidden px-2.5 py-1 glass rounded-full text-amber-200 border border-amber-400/40 text-[10px] sm:text-[11px] font-bold shadow-xl flex items-center gap-1.5 bg-gradient-to-r from-amber-950/95 via-yellow-950/90 to-amber-950/95 animate-pulse max-w-full">
+          <span class="crown-glow shrink-0">👑</span>
+          <span class="truncate">Quà lớn chờ: <span id="spotlightQueueCount"
+              class="text-amber-300 font-black">0</span></span>
+        </div>
+
+        <!-- Bảng Thông Báo Câu Được Cá (Hiển thị rõ cá gì bao nhiêu kg) -->
+        <div id="catchBoardAlert" class="w-full flex justify-start transition-all duration-300"></div>
+
+        <!-- VIP Large Gift Alert -->
+        <div id="vipGiftAlert" class="w-full flex justify-start transition-all duration-300"></div>
+      </div>
+
+      <!-- Live Stream Compact Toasts Feed (Bottom-left corner, raised safely above rules footer) -->
+      <div id="toasts"
+        class="absolute bottom-[148px] sm:bottom-[154px] md:bottom-28 left-2.5 sm:left-4 space-y-1 pointer-events-none z-30 flex flex-col items-start max-w-[270px] sm:max-w-[320px]">
+      </div>
+
+      <!-- Bottom Interactive Rules HUD Footer (Đầy đủ 4 luật chơi trực quan, rõ ràng) -->
+      <footer id="streamFooter"
+        class="absolute bottom-2 sm:bottom-3 inset-x-2 sm:inset-x-3 pointer-events-auto z-20 flex justify-center">
+        <div
+          class="glass w-full max-w-xl rounded-2xl p-2 sm:p-2.5 text-[9.5px] sm:text-[11px] text-white/95 border border-emerald-400/30 shadow-2xl backdrop-blur-md">
+          <!-- Header Bar: Tiêu đề + Nút Xem Bảng Chi Tiết Tỷ Lệ Xu -->
+          <div class="flex items-center justify-between pb-1 mb-1 border-b border-white/10 text-[9.5px] sm:text-[10px]">
+            <div class="flex items-center gap-1.5 font-black text-amber-300 uppercase tracking-wider">
+              <span>📜 LUẬT CHƠI CÂU CÁ</span>
+              <span
+                class="text-[8.5px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-400/20 normal-case">100%
+                Minh Bạch</span>
+            </div>
+            <button id="openRulesFromFooterBtn" title="Xem bảng tỷ lệ Xu sang kg cá"
+              class="flex items-center gap-1 text-[9px] sm:text-[10px] text-emerald-300 hover:text-emerald-200 font-bold bg-white/10 hover:bg-white/15 px-2 py-0.5 rounded-lg transition-all active:scale-95">
+              <span>Bảng Xu ↗</span>
+            </button>
+          </div>
+
+          <!-- 4 Core Rules Grid (Mobile: 2 cột gọn gàng, Desktop: 4 cột dàn ngang) -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-1.5 text-[9px] sm:text-[10px] leading-snug">
+            <!-- 1. Bình luận -->
+            <div class="flex items-start gap-1.5 bg-black/35 rounded-xl p-1.5 border border-white/5">
+              <span class="text-sm shrink-0">💬</span>
+              <div>
+                <div class="font-bold text-emerald-300">Bình Luận</div>
+                <div class="text-white/80">bất kì để vào câu <b class="text-white font-bold"></b> <span
+                    class="text-emerald-200 text-[8.5px]"></span></div>
+              </div>
+            </div>
+
+            <!-- 2. Thả tim -->
+            <div class="flex items-start gap-1.5 bg-black/35 rounded-xl p-1.5 border border-white/5">
+              <span class="text-sm shrink-0">💖</span>
+              <div>
+                <div class="font-bold text-pink-300">Thả Tim</div>
+                <div class="text-white/80"><b class="text-white font-bold">để thu hút cá</b> <span
+                    class="text-pink-200 text-[8.5px]"></span></div>
+              </div>
+            </div>
+
+            <!-- 3. Tặng quà -->
+            <div class="flex items-start gap-1.5 bg-black/35 rounded-xl p-1.5 border border-white/5">
+              <span class="text-sm shrink-0">🎁</span>
+              <div>
+                <div class="font-bold text-amber-300">Tặng Quà</div>
+                <div class="text-white/80">Cá khủng tới <b class="text-amber-200 font-bold">500 kg</b> <span
+                    class="text-amber-300 text-[8.5px]">(100% trúng)</span></div>
+              </div>
+            </div>
+
+            <!-- 4. Đua Top -->
+            <div class="flex items-start gap-1.5 bg-black/35 rounded-xl p-1.5 border border-white/5">
+              <span class="text-sm shrink-0">🏆</span>
+              <div>
+                <div class="font-bold text-yellow-300">Đua Top</div>
+                <div class="text-white/80">Xếp hạng theo <b class="text-white font-bold">Tổng kg</b> cá câu được</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      <!-- Compact Corner Leaderboard (Chiếm 1 góc nhỏ gọn gàng, chỉ Top - Tên - Điểm) -->
+      <aside id="leaderboardDrawer"
+        class="absolute top-14 sm:top-16 right-2 sm:right-3 w-[155px] sm:w-[175px] glass rounded-2xl p-2 sm:p-2.5 z-40 border border-white/10 shadow-2xl pointer-events-auto">
+        <!-- Header: Tiêu đề + Nút Tab Mini + Nút Ẩn -->
+        <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/10 text-[10px]">
+          <div class="flex items-center gap-1 font-bold text-amber-300">
+            <span>🏆</span>
+            <span id="cornerLdTitle" class="tracking-tight text-[10px]">TOP CẦN THỦ</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <!-- 2 Mini Switcher Tabs: 🎣 Cần thủ / 💎 Ủng hộ -->
+            <div class="flex items-center bg-black/40 rounded-lg p-0.5 text-[9px] border border-white/10">
+              <button id="tabAnglersBtn" title="Xem Top Điểm Cần Thủ"
+                class="px-1.5 py-0.5 rounded bg-emerald-400/30 text-emerald-200 font-bold transition-all">🎣</button>
+              <button id="tabDonorsBtn" title="Xem Top Xu Ủng Hộ"
+                class="px-1.5 py-0.5 rounded text-white/40 hover:text-white font-bold transition-all">💎</button>
+            </div>
+            <!-- Nút Ẩn/Hiện -->
+            <button id="closeLeaderboardBtn" title="Thu gọn BXH"
+              class="w-5 h-5 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] flex items-center justify-center text-white/70 active:scale-95 transition-all">✕</button>
+          </div>
+        </div>
+
+        <!-- Danh Sách Gọn Gàng (Chỉ Top - Tên - Điểm) -->
+        <div id="cornerLeaderboardList" class="space-y-1 text-[10px]">
+          <!-- Rendered dynamically via JS -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="leaderboardEmpty" class="hidden text-[10px] text-white/40 py-2.5 text-center">
+          Chưa có điểm...
+        </div>
+      </aside>
+
+      <!-- Rules & Gameplay Modal (Opened via 📖 button) -->
+      <div id="rulesModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="glass w-full max-w-md rounded-3xl p-5 border border-emerald-400/30 shadow-2xl relative">
+          <!-- Close button -->
+          <button id="closeRulesBtn"
+            class="absolute top-4 right-4 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-xs flex items-center justify-center text-white/80 active:scale-95 transition-all">✕</button>
+
+          <!-- Modal Header -->
+          <div class="flex items-center gap-2 mb-4">
+            <span class="text-2xl">📖</span>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-emerald-300 font-bold">Hướng Dẫn Tham Gia</div>
+              <h3 class="text-base font-black text-white">LUẬT CHƠI CÂU CÁ LIVESTREAM</h3>
+            </div>
+          </div>
+
+          <!-- 3 Steps Guide -->
+          <div class="space-y-2.5 text-xs text-white/90 mb-4">
+            <!-- Step 1 -->
+            <div class="flex items-start gap-2.5 p-2.5 rounded-2xl bg-white/5 border border-white/10">
+              <div
+                class="w-6 h-6 rounded-full bg-emerald-400/20 text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">
+                1</div>
+              <div>
+                <div class="font-bold text-white text-[12px] flex items-center gap-1">
+                  <span>💬 Vào Bờ & Câu Miễn Phí</span>
+                </div>
+                <div class="text-white/70 text-[11px] mt-0.5">Bình luận <b class="text-emerald-300">bất kỳ</b> để vào
+                  bờ. Mỗi <b>1 phút (60 giây)</b> nhận 1 lượt câu miễn phí (cá 0.1 – 0.5 kg).</div>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="flex items-start gap-2.5 p-2.5 rounded-2xl bg-white/5 border border-white/10">
+              <div
+                class="w-6 h-6 rounded-full bg-pink-400/20 text-pink-300 font-black text-xs flex items-center justify-center shrink-0">
+                2</div>
+              <div>
+                <div class="font-bold text-white text-[12px] flex items-center gap-1">
+                  <span>💖 Thả Tim Giảm Thời Gian</span>
+                </div>
+                <div class="text-white/70 text-[11px] mt-0.5">Mỗi <b class="text-pink-300">100 lượt tim</b> = giảm <b>1
+                    giây</b> hồi chiêu (tối thiểu còn 5s)! Thả tim càng nhiều, câu càng nhanh.</div>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="flex items-start gap-2.5 p-2.5 rounded-2xl bg-white/5 border border-white/10">
+              <div
+                class="w-6 h-6 rounded-full bg-amber-400/20 text-amber-300 font-black text-xs flex items-center justify-center shrink-0">
+                3</div>
+              <div>
+                <div class="font-bold text-white text-[12px] flex items-center gap-1">
+                  <span>🏆 Đua Top Trọng Lượng (kg)</span>
+                </div>
+                <div class="text-white/70 text-[11px] mt-0.5">Tặng quà để câu cá khổng lồ. Bảng xếp hạng tính theo <b
+                    class="text-amber-300">tổng trọng lượng cá (kg)</b> đã câu được!</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fish & Gift Tiers Reference -->
+          <div
+            class="p-2.5 rounded-2xl bg-emerald-950/40 border border-emerald-400/20 mb-4 text-[10px] text-white/80 space-y-1">
+            <div class="font-bold text-emerald-300 text-[11px] flex items-center gap-1">
+              <span>🐟 Phân Cấp Trọng Lượng Theo Xu Quà (100% Cam Kết):</span>
+            </div>
+            <div class="flex justify-between py-0.5 border-b border-white/5">
+              <span>💬 Câu miễn phí (0 xu • hồi chiêu 1 phút)</span>
+              <span class="text-emerald-200 font-bold">0.1 – 0.5 kg</span>
+            </div>
+            <div class="flex justify-between py-0.5 border-b border-white/5">
+              <span>🌸 Quà 1 – 9 xu (Hoa hồng, Kem, Tim)</span>
+              <span class="text-emerald-300 font-bold">0.5 – 1.0 kg</span>
+            </div>
+            <div class="flex justify-between py-0.5 border-b border-white/5">
+              <span>🎩 Quà 10 – 49 xu (Mũ phớt, Kính râm)</span>
+              <span class="text-cyan-200 font-bold">1.0 – 3.0 kg</span>
+            </div>
+            <div class="flex justify-between py-0.5 border-b border-white/5">
+              <span>⛵ Quà 50 – 199 xu (Du thuyền, Pháo hoa)</span>
+              <span class="text-purple-300 font-bold">3.0 – 10.0 kg</span>
+            </div>
+            <div class="flex justify-between py-0.5 border-b border-white/5">
+              <span>🐉 Quà 500 – 2499 xu (Rồng Vàng, Siêu xe)</span>
+              <span class="text-amber-300 font-bold">25.0 – 100.0 kg</span>
+            </div>
+            <div class="flex justify-between py-0.5">
+              <span>👑 Quà 5000+ xu (Du thuyền VIP, Sư tử)</span>
+              <span class="text-yellow-300 font-black">200.0 – 500.0 kg</span>
+            </div>
+          </div>
+
+          <!-- Got it button -->
+          <button id="rulesGotItBtn"
+            class="w-full py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-1.5">
+            <span>🎣</span> Sẵn Sàng Câu Cá Ngay!
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const phoneFrame = document.querySelector('#phoneFrame');
+      const canvas = document.querySelector('#scene');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const socket = io();
+
+      let W = 400, H = 700, DPR = 1;
+      let isPortrait = true;
+      let players = [], leaderboard = [];
+      let activeLeaderboardTab = 'anglers'; // 'anglers' | 'donors'
+      let currentTopAnglers = [];
+      let currentTopDonors = [];
+      const sparkles = [];
+      const ambientFish = Array.from({ length: 7 }, (_, i) => ({
+        x: (i * 140 + 50) % 800,
+        depthFrac: 0.2 + (i * 0.11) % 0.58,
+        speed: 0.3 + (i % 3) * 0.22,
+        dir: i % 2 === 0 ? 1 : -1,
+        size: 13 + (i % 4) * 5,
+        wiggleOffset: i * 1.3
+      }));
+      const approachingCatches = new Map();
+      const activeCatches = new Map();
+      let approachingCatch = null, activeCatch = null;
+      const outcomePoses = new Map();
+
+      /* ================= CAMERA & GIFT TIERS CONFIGURATION ================= */
+      // Ngưỡng phân mức quà dễ chỉnh ở đầu khối camera
+      const GIFT_TIER_LARGE = 100;    // >= 100 xu: Quà lớn (hoặc tỉ lệ >= 90%)
+      const GIFT_TIER_MEDIUM = 10;    // >= 10 xu và < 100 xu: Quà vừa
+      const APPROACH_TIMEOUT_MS = 6500;
+
+      const ZOOM_GAP = 320;           // Nhịp chuyển mượt giữa 2 lượt zoom (ms)
+      const ZOOM_HOLD_AFTER = 1200;   // Giữ camera sau lượt cuối trước khi về góc rộng (ms)
+
+      // Trạng thái Camera Zoom & Priority Queue
+      const zoomQueue = [];
+      let currentZoomTarget = null;
+      let currentPanTarget = null; // Mục tiêu lia cam (không zoom) cho người chơi miễn phí
+      let lastZoomEndTime = 0;
+      let lastSpotlightAnglerPos = null;
+      let spotlightDarkAlpha = 0;
+      let lastActivityTime = performance.now();
+
+      function getEventCoins(e) {
+        if (!e) return 0;
+        if (Number.isFinite(e.coins) && e.coins > 0) return Number(e.coins);
+        if (e.fish && Number.isFinite(e.fish.minCoins) && e.fish.minCoins > 0) return Number(e.fish.minCoins);
+        const chance = Number(e.chance || 0);
+        if (chance >= 0.9) return 100;
+        if (chance >= 0.6) return 10;
+        if (chance > 0.08) return 1;
+        return 0;
+      }
+
+      function getGiftTier(coins) {
+        if (coins >= GIFT_TIER_LARGE) return 'large';
+        if (coins >= GIFT_TIER_MEDIUM) return 'medium';
+        return 'small';
+      }
+
+      function getZoomDuration(tier) {
+        if (tier === 'large') return 3600; // Quà lớn lên hình 3.6s
+        if (tier === 'medium') return 2900; // Quà vừa lên hình 2.9s
+        return 2300; // Quà nhỏ lên hình 2.3s
+      }
+
+      function getZoomScale(tier) {
+        if (tier === 'large') return 1.38; // Cận cảnh sắc nét cho quà lớn
+        if (tier === 'medium') return 1.22; // Zoom rõ nét cho quà vừa
+        return 1.10; // Zoom vào người tặng quà (từ 1 xu trở lên)
+      }
+
+      function getDefaultZoom() {
+        // Góc quay rộng thấy rõ ít nhất 5 người cùng lúc trên màn hình dọc điện thoại (9:16)
+        return isPortrait ? 0.65 : 0.72;
+      }
+
+      function getPlayerActiveCoins(playerId) {
+        if (activeCatches.has(playerId)) {
+          return activeCatches.get(playerId).coins || 0;
+        }
+        if (approachingCatches.has(playerId)) {
+          return approachingCatches.get(playerId).coins || 0;
+        }
+        return 0;
+      }
+
+      function resolvePlayer(e) {
+        if (e && e.playerId) return e.playerId;
+        if (e && e.username) {
+          const found = players.find(p => p.username === e.username || p.name === e.username);
+          if (found) return found.id;
+        }
+        return (players.length ? players[0].id : null);
+      }
+
+      // Yêu cầu:
+      // - Người chơi giật miễn phí (0 xu): Không cần hiệu ứng zoom, chỉ cần lia cam có tầm nhìn là được
+      // - Chỉ những người tặng quà (coins > 0) câu lên mới zoom
+      function requestZoom(e, coins) {
+        if (!e) return;
+        const playerId = e.playerId || resolvePlayer(e);
+        if (!playerId) return;
+        const safeCoins = Number.isFinite(Number(coins)) ? Number(coins) : getEventCoins(e);
+        const now = performance.now();
+
+        // 1. NGƯỜI CHƠI MIỄN PHÍ (coins === 0):
+        // Không zoom, chỉ lia cam có tầm nhìn nếu chưa có ai đang được zoom quà tặng
+        if (safeCoins <= 0) {
+          if (!currentZoomTarget) {
+            currentPanTarget = {
+              playerId,
+              startTime: now,
+              endTime: now + 2400
+            };
+            lastActivityTime = now;
+          }
+          return;
+        }
+
+        // 2. CHỈ NHỮNG NGƯỜI TẶNG QUÀ (safeCoins > 0) CÂU LÊN MỚI ZOOM:
+        const tier = getGiftTier(safeCoins);
+        const duration = getZoomDuration(tier);
+
+        const item = {
+          playerId,
+          username: e.username || 'Cần thủ',
+          coins: safeCoins,
+          tier,
+          giftName: e.giftName,
+          addedAt: now
+        };
+
+        // Nếu người này chính là người đang được zoom: cập nhật nâng cấp coins/tier và gia hạn
+        if (currentZoomTarget && currentZoomTarget.playerId === playerId) {
+          if (safeCoins > currentZoomTarget.coins) {
+            currentZoomTarget.coins = safeCoins;
+            currentZoomTarget.tier = tier;
+          }
+          currentZoomTarget.minEndTime = Math.max(currentZoomTarget.minEndTime, now + duration);
+          return;
+        }
+
+        // Nếu chưa có ai đang được zoom và đã qua nhịp nghỉ: BẮT ĐẦU ZOOM VÀO NGAY!
+        if (!currentZoomTarget && now >= (lastZoomEndTime + ZOOM_GAP)) {
+          startZoom(item, now);
+          return;
+        }
+
+        // Nếu đang có người được zoom: GIỮ NGUYÊN người hiện tại, đưa người mới vào hàng chờ!
+        const existingIdx = zoomQueue.findIndex(q => q.playerId === playerId);
+        if (existingIdx !== -1) {
+          if (safeCoins > zoomQueue[existingIdx].coins) {
+            zoomQueue[existingIdx].coins = safeCoins;
+            zoomQueue[existingIdx].tier = tier;
+          }
+        } else {
+          zoomQueue.push(item);
+        }
+
+        // Sắp xếp hàng chờ theo mức ưu tiên:
+        // - Quà lớn hơn (coins cao hơn) xếp lên đầu
+        // - Cùng mức quà thì ai gửi trước xếp trước
+        zoomQueue.sort((a, b) => (b.coins - a.coins) || (a.addedAt - b.addedAt));
+      }
+
+      function startZoom(item, now) {
+        const safeCoins = Number(item.coins || 0);
+        const duration = getZoomDuration(item.tier || 'small');
+        if (safeCoins > 0) {
+          // Chỉ người tặng quà mới kích hoạt zoom cận cảnh
+          currentZoomTarget = {
+            ...item,
+            startTime: now,
+            minEndTime: now + duration
+          };
+          currentPanTarget = null;
+        } else {
+          // Lượt câu miễn phí: Chỉ lia camera có tầm nhìn, KHÔNG zoom
+          currentZoomTarget = null;
+          currentPanTarget = {
+            playerId: item.playerId,
+            startTime: now,
+            endTime: now + duration
+          };
+        }
+      }
+
+      /* ================= CAMERA: PAN & ZOOM ================= */
+      const camera = {
+        x: 0,
+        y: 0,
+        z: 0.85,
+        targetX: 0,
+        targetY: 0,
+        targetZ: 0.85,
+        minZ: 0.22,
+        maxZ: 2.2,
+        isUserControlling: false
+      };
+      const CAST_VISUAL_MS = 2900;
+
+      /* Proper mapping to existing character files: bite -> reel.png */
+      const CHARACTER_POSES = {
+        idle: { file: 'idle.png', anchor: 0.35, tip: 0.88 },
+        bite: { file: 'reel.png', altFile: 'bite.png', anchor: 0.33, tip: 0.98 },
+        catch: { file: 'catch.png', anchor: 0.52, tip: null },
+        miss: { file: 'miss.png', anchor: 0.42, tip: null },
+        walkLeft: { file: 'walk-left.png', anchor: 0.36, tip: null },
+        walkRight: { file: 'walk-right.png', anchor: 0.40, tip: null }
+      };
+
+      const charImages = new Map();
+      function getCharacterImage(id, pose) {
+        if (!id) return null;
+        const key = `${id}:${pose}`;
+        if (charImages.has(key)) return charImages.get(key);
+        const conf = CHARACTER_POSES[pose] || CHARACTER_POSES.idle;
+        const img = new Image();
+        img.src = `/assets/characters/${encodeURIComponent(id)}/${conf.file}?v=3`;
+        img.onerror = () => {
+          if (conf.file === 'reel.png') {
+            img.src = `/assets/characters/${encodeURIComponent(id)}/bite.png?v=3`;
+          } else if (conf.file !== 'idle.png') {
+            img.src = `/assets/characters/${encodeURIComponent(id)}/idle.png?v=3`;
+          }
+        };
+        charImages.set(key, img);
+        return img;
+      }
+      function preloadCharacter(p) {
+        if (!p || !p.characterId) return;
+        Object.keys(CHARACTER_POSES).forEach(pose => getCharacterImage(p.characterId, pose));
+      }
+
+      /* ================= MATH HELPERS ================= */
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+      function hash(str) {
+        let h = 2166136261 >>> 0;
+        const s = String(str || '');
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h;
+      }
+      function rng(seed) {
+        let s = (seed || 1) >>> 0;
+        return () => {
+          s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+          return (s >>> 0) / 4294967296;
+        };
+      }
+      function mk(w, h) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.floor(w));
+        c.height = Math.max(1, Math.floor(h));
+        return c;
+      }
+
+      /* ================= ASSETS & METRICS ================= */
+      let vig = null, horizon = 260, sunX = 200, sunY = 180, reeds = [], clouds = [], dust = [], glow;
+      const lay = {}, nextRip = {}, ripples = [], drops = [];
+
+      const CHARACTER_METRICS = { "2e22842e22842e22": { "idle": { "anchorX": 0.352, "groundY": 0.895, "tipX": 0.813, "tipY": 0.138, "width": 607, "height": 609 }, "bite": { "anchorX": 0.307, "groundY": 0.984, "tipX": 0.98, "tipY": 0.073, "width": 792, "height": 546 }, "catch": { "anchorX": 0.452, "groundY": 0.984, "tipX": null, "tipY": null, "width": 493, "height": 547 }, "miss": { "anchorX": 0.38, "groundY": 0.983, "tipX": null, "tipY": null, "width": 470, "height": 532 }, "walkLeft": { "anchorX": 0.436, "groundY": 0.9, "tipX": null, "tipY": null, "width": 511, "height": 609 }, "walkRight": { "anchorX": 0.398, "groundY": 0.9, "tipX": null, "tipY": null, "width": 507, "height": 609 } }, "3ztdn33ztdn33ztd": { "idle": { "anchorX": 0.252, "groundY": 0.984, "tipX": 0.925, "tipY": 0.067, "width": 571, "height": 550 }, "bite": { "anchorX": 0.316, "groundY": 0.998, "tipX": 0.98, "tipY": 0.068, "width": 787, "height": 556 }, "catch": { "anchorX": 0.651, "groundY": 0.998, "tipX": null, "tipY": null, "width": 575, "height": 549 }, "miss": { "anchorX": 0.392, "groundY": 0.998, "tipX": null, "tipY": null, "width": 415, "height": 534 }, "walkLeft": { "anchorX": 0.361, "groundY": 0.984, "tipX": null, "tipY": null, "width": 397, "height": 566 }, "walkRight": { "anchorX": 0.326, "groundY": 0.984, "tipX": null, "tipY": null, "width": 432, "height": 558 } }, "4s1udf4s1udf4s1u": { "idle": { "anchorX": 0.298, "groundY": 0.985, "tipX": 0.848, "tipY": 0.036, "width": 618, "height": 601 }, "bite": { "anchorX": 0.484, "groundY": 0.998, "tipX": 0.97, "tipY": 0, "width": 539, "height": 560 }, "catch": { "anchorX": 0.603, "groundY": 0.998, "tipX": null, "tipY": null, "width": 578, "height": 560 }, "miss": { "anchorX": 0.325, "groundY": 0.998, "tipX": null, "tipY": null, "width": 419, "height": 560 }, "walkLeft": { "anchorX": 0.289, "groundY": 0.985, "tipX": null, "tipY": null, "width": 428, "height": 595 }, "walkRight": { "anchorX": 0.64, "groundY": 0.985, "tipX": null, "tipY": null, "width": 416, "height": 601 } }, "5907hx5907hx5907": { "idle": { "anchorX": 0.321, "groundY": 0.985, "tipX": 0.887, "tipY": 0.105, "width": 639, "height": 584 }, "bite": { "anchorX": 0.412, "groundY": 0.988, "tipX": 0.968, "tipY": 0.071, "width": 814, "height": 560 }, "catch": { "anchorX": 0.53, "groundY": 0.998, "tipX": null, "tipY": null, "width": 567, "height": 560 }, "miss": { "anchorX": 0.35, "groundY": 0.998, "tipX": null, "tipY": null, "width": 449, "height": 550 }, "walkLeft": { "anchorX": 0.354, "groundY": 0.984, "tipX": null, "tipY": null, "width": 494, "height": 571 }, "walkRight": { "anchorX": 0.375, "groundY": 0.984, "tipX": null, "tipY": null, "width": 494, "height": 575 } }, "60b3lk60b3lk60b3": { "idle": { "anchorX": 0.435, "groundY": 0.985, "tipX": 0.824, "tipY": 0.226, "width": 497, "height": 602 }, "bite": { "anchorX": 0.403, "groundY": 0.998, "tipX": 0.839, "tipY": 0, "width": 857, "height": 560 }, "catch": { "anchorX": 0.531, "groundY": 0.998, "tipX": null, "tipY": null, "width": 512, "height": 560 }, "miss": { "anchorX": 0.385, "groundY": 0.998, "tipX": null, "tipY": null, "width": 461, "height": 560 }, "walkLeft": { "anchorX": 0.395, "groundY": 0.985, "tipX": null, "tipY": null, "width": 489, "height": 598 }, "walkRight": { "anchorX": 0.342, "groundY": 0.985, "tipX": null, "tipY": null, "width": 519, "height": 598 } }, "dmgej4dmgej4dmge": { "idle": { "anchorX": 0.25, "groundY": 0.997, "tipX": 0.735, "tipY": 0.179, "width": 811, "height": 596 }, "bite": { "anchorX": 0.291, "groundY": 0.989, "tipX": 0.704, "tipY": 0, "width": 873, "height": 560 }, "catch": { "anchorX": 0.584, "groundY": 0.985, "tipX": null, "tipY": null, "width": 579, "height": 606 }, "miss": { "anchorX": 0.576, "groundY": 0.991, "tipX": null, "tipY": null, "width": 630, "height": 560 }, "walkLeft": { "anchorX": 0.303, "groundY": 0.984, "tipX": null, "tipY": null, "width": 578, "height": 578 }, "walkRight": { "anchorX": 0.333, "groundY": 0.985, "tipX": null, "tipY": null, "width": 489, "height": 606 } }, "eef70eeef70eeef7": { "idle": { "anchorX": 0.284, "groundY": 0.985, "tipX": 0.785, "tipY": 0.113, "width": 613, "height": 592 }, "bite": { "anchorX": 0.29, "groundY": 0.998, "tipX": 0.981, "tipY": 0.071, "width": 818, "height": 560 }, "catch": { "anchorX": 0.475, "groundY": 0.998, "tipX": null, "tipY": null, "width": 610, "height": 560 }, "miss": { "anchorX": 0.56, "groundY": 0.998, "tipX": null, "tipY": null, "width": 452, "height": 560 }, "walkLeft": { "anchorX": 0.355, "groundY": 0.985, "tipX": null, "tipY": null, "width": 440, "height": 589 }, "walkRight": { "anchorX": 0.599, "groundY": 0.985, "tipX": null, "tipY": null, "width": 420, "height": 589 } }, "i7lqtbi7lqtbi7lq": { "idle": { "anchorX": 0.38, "groundY": 0.985, "tipX": 0.891, "tipY": 0.181, "width": 554, "height": 590 }, "bite": { "anchorX": 0.347, "groundY": 0.993, "tipX": 0.983, "tipY": 0, "width": 848, "height": 560 }, "catch": { "anchorX": 0.574, "groundY": 0.991, "tipX": null, "tipY": null, "width": 449, "height": 560 }, "miss": { "anchorX": 0.409, "groundY": 0.993, "tipX": null, "tipY": null, "width": 410, "height": 560 }, "walkLeft": { "anchorX": 0.39, "groundY": 0.985, "tipX": null, "tipY": null, "width": 475, "height": 586 }, "walkRight": { "anchorX": 0.355, "groundY": 0.985, "tipX": null, "tipY": null, "width": 479, "height": 586 } }, "ik0a62ik0a62ik0a": { "idle": { "anchorX": 0.297, "groundY": 0.984, "tipX": 0.833, "tipY": 0.106, "width": 612, "height": 579 }, "bite": { "anchorX": 0.324, "groundY": 0.984, "tipX": 0.93, "tipY": 0.073, "width": 817, "height": 558 }, "catch": { "anchorX": 0.508, "groundY": 0.984, "tipX": null, "tipY": null, "width": 539, "height": 558 }, "miss": { "anchorX": 0.609, "groundY": 0.984, "tipX": null, "tipY": null, "width": 408, "height": 558 }, "walkLeft": { "anchorX": 0.277, "groundY": 0.984, "tipX": null, "tipY": null, "width": 534, "height": 578 }, "walkRight": { "anchorX": 0.578, "groundY": 0.985, "tipX": null, "tipY": null, "width": 461, "height": 606 } }, "mb0p9imb0p9imb0p": { "idle": { "anchorX": 0.292, "groundY": 0.985, "tipX": 0.787, "tipY": 0.11, "width": 620, "height": 590 }, "bite": { "anchorX": 0.303, "groundY": 0.998, "tipX": 0.981, "tipY": 0.068, "width": 832, "height": 560 }, "catch": { "anchorX": 0.475, "groundY": 0.998, "tipX": null, "tipY": null, "width": 610, "height": 560 }, "miss": { "anchorX": 0.59, "groundY": 0.998, "tipX": null, "tipY": null, "width": 430, "height": 546 }, "walkLeft": { "anchorX": 0.355, "groundY": 0.985, "tipX": null, "tipY": null, "width": 440, "height": 589 }, "walkRight": { "anchorX": 0.598, "groundY": 0.985, "tipX": null, "tipY": null, "width": 420, "height": 590 } }, "nk5hh9nk5hh9nk5h": { "idle": { "anchorX": 0.413, "groundY": 0.985, "tipX": 0.964, "tipY": 0.092, "width": 560, "height": 598 }, "bite": { "anchorX": 0.398, "groundY": 0.998, "tipX": 0.998, "tipY": 0.108, "width": 502, "height": 622 }, "catch": { "anchorX": 0.495, "groundY": 0.998, "tipX": null, "tipY": null, "width": 522, "height": 605 }, "miss": { "anchorX": 0.557, "groundY": 0.998, "tipX": null, "tipY": null, "width": 630, "height": 560 }, "walkLeft": { "anchorX": 0.294, "groundY": 0.985, "tipX": null, "tipY": null, "width": 541, "height": 598 }, "walkRight": { "anchorX": 0.408, "groundY": 0.901, "tipX": null, "tipY": null, "width": 508, "height": 618 }, "reel": { "anchorX": 0.398, "groundY": 0.998, "tipX": 0.998, "tipY": 0.108, "width": 502, "height": 622 } }, "su9dk9su9dk9su9d": { "idle": { "anchorX": 0.379, "groundY": 0.885, "tipX": 0.909, "tipY": 0.101, "width": 548, "height": 620 }, "bite": { "anchorX": 0.304, "groundY": 0.984, "tipX": 0.978, "tipY": 0.075, "width": 760, "height": 546 }, "catch": { "anchorX": 0.571, "groundY": 0.984, "tipX": null, "tipY": null, "width": 472, "height": 548 }, "miss": { "anchorX": 0.366, "groundY": 0.984, "tipX": null, "tipY": null, "width": 441, "height": 547 }, "walkLeft": { "anchorX": 0.379, "groundY": 0.894, "tipX": null, "tipY": null, "width": 515, "height": 616 }, "walkRight": { "anchorX": 0.336, "groundY": 0.885, "tipX": null, "tipY": null, "width": 508, "height": 620 } }, "ts1cwrts1cwrts1c": { "idle": { "anchorX": 0.417, "groundY": 0.985, "tipX": 0.923, "tipY": 0.066, "width": 554, "height": 590 }, "bite": { "anchorX": 0.395, "groundY": 0.989, "tipX": 0.982, "tipY": 0.059, "width": 907, "height": 560 }, "catch": { "anchorX": 0.569, "groundY": 0.989, "tipX": null, "tipY": null, "width": 460, "height": 560 }, "miss": { "anchorX": 0.42, "groundY": 0.991, "tipX": null, "tipY": null, "width": 478, "height": 560 }, "walkLeft": { "anchorX": 0.353, "groundY": 0.985, "tipX": null, "tipY": null, "width": 512, "height": 589 }, "walkRight": { "anchorX": 0.598, "groundY": 0.985, "tipX": null, "tipY": null, "width": 502, "height": 590 } } };
+      const CHARACTER_IDS = ["2e22842e22842e22", "3ztdn33ztdn33ztd", "4s1udf4s1udf4s1u", "5907hx5907hx5907", "60b3lk60b3lk60b3", "dmgej4dmgej4dmge", "eef70eeef70eeef7", "i7lqtbi7lqtbi7lq", "ik0a62ik0a62ik0a", "mb0p9imb0p9imb0p", "nk5hh9nk5hh9nk5h", "su9dk9su9dk9su9d", "ts1cwrts1cwrts1c"];
+
+      let debugOverlayEnabled = false;
+      let forcedGlobalPose = null;
+      let forcedPoseUntil = 0;
+
+      /* Continuous Shoreline Elevation Formula */
+      function getBankY(x) {
+        const baseFrac = isPortrait ? 0.77 : 0.79;
+        return H * baseFrac + Math.sin(x * 0.0035) * 8 + Math.sin(x * 0.009 + 1.2) * 5;
+      }
+
+      /* Seat coordinates generator: Staggered diagonal zigzag formation (xếp so le xéo ra) */
+      function calculateSeatPos(slot, playerId) {
+        const s = Math.max(0, Number.isInteger(slot) ? slot : 0);
+        let k = 0;
+        if (s > 0) {
+          const magnitude = Math.ceil(s / 2);
+          const sign = (s % 2 === 1) ? 1 : -1;
+          k = sign * magnitude;
+        }
+
+        // Spacing between adjacent spots along the bank (nhích vừa vặn 96px để thấy rõ 5 người cùng lúc)
+        const spacing = isPortrait ? 96 : 124;
+        const x = W * 0.5 + k * spacing;
+
+        // Staggered diagonal formation:
+        // Even k (0, 2, -2, 4, -4...): Front row, right at water edge (y = getBankY + 16)
+        // Odd k (1, -1, 3, -3...): Back row, set back diagonally on grass (y = getBankY + 40)
+        const isBackRow = (Math.abs(k) % 2 === 1);
+        const rowYOffset = isBackRow ? 40 : 16;
+        const y = getBankY(x) + rowYOffset;
+
+        return { x, y, isBackRow };
+      }
+
+      function cloudSprite(R) {
+        const w = 360, h = 110, c = mk(w, h), g = c.getContext('2d');
+        for (let i = 0; i < 16; i++) {
+          const x = 40 + R() * 280, y = h * .55 + (R() - .5) * 30, r = 22 + R() * 34, q = g.createRadialGradient(x, y - r * .2, 0, x, y, r);
+          q.addColorStop(0, 'rgba(255,230,205,.6)');
+          q.addColorStop(.6, 'rgba(238,170,160,.24)');
+          q.addColorStop(1, 'rgba(200,130,150,0)');
+          g.fillStyle = q;
+          g.save();
+          g.translate(x, y);
+          g.scale(1.7, .5);
+          g.translate(-x, -y);
+          g.beginPath();
+          g.arc(x, y, r, 0, 7);
+          g.fill();
+          g.restore();
+        }
+        return c;
+      }
+
+      function initOnce() {
+        const R = rng(7);
+        for (let i = 0; i < 6; i++) clouds.push({ s: cloudSprite(R), fx: R() * 1.4, fy: .04 + R() * .2, v: .004 + R() * .01, k: .6 + R() * .9 });
+        for (let i = 0; i < 46; i++) dust.push({ x: R(), y: R(), p: R() * 9, s: .4 + R() });
+        glow = mk(32, 32);
+        const g = glow.getContext('2d'), q = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+        q.addColorStop(0, 'rgba(255,230,170,1)');
+        q.addColorStop(1, 'rgba(255,200,120,0)');
+        g.fillStyle = q;
+        g.fillRect(0, 0, 32, 32);
+      }
+
+      function buildStaticVignette() {
+        horizon = H * (isPortrait ? 0.36 : 0.42);
+        sunX = W * (isPortrait ? 0.52 : 0.6);
+        sunY = horizon - H * (isPortrait ? 0.08 : 0.07);
+
+        vig = mk(W, H);
+        const g = vig.getContext('2d');
+        const v = g.createRadialGradient(W / 2, H * .55, H * .3, W / 2, H * .55, Math.hypot(W, H) * .6);
+        v.addColorStop(0, 'rgba(3,10,14,0)');
+        v.addColorStop(1, 'rgba(3,10,14,.6)');
+        g.fillStyle = v;
+        g.fillRect(0, 0, W, H);
+
+        reeds = [];
+        const Q = rng(5);
+        for (let i = 0; i < (isPortrait ? 24 : 36); i++) {
+          const left = i % 2, x = left ? Q() * W * .11 : W - Q() * W * .11;
+          reeds.push({ x, b: H * (.9 + Q() * .12), h: H * (.1 + Q() * .14), p: Q() * 9, lean: left ? 1 : -1 });
+        }
+      }
+
+      function resize() {
+        DPR = Math.min(window.devicePixelRatio || 1, 2);
+        W = phoneFrame.clientWidth || window.innerWidth;
+        H = phoneFrame.clientHeight || window.innerHeight;
+        isPortrait = H > W;
+
+        canvas.width = Math.floor(W * DPR);
+        canvas.height = Math.floor(H * DPR);
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        buildStaticVignette();
+      }
+
+      initOnce();
+      resize();
+      window.addEventListener('resize', resize);
+
+      /* ================= EFFECTS ================= */
+      const addRipple = (x, y, max = 26, life = 1600) => ripples.push({ x, y, max, life, s: performance.now() });
+      function splash(x, y, n) {
+        for (let i = 0; i < n; i++) drops.push({ x, y, vx: (Math.random() - .5) * .28, vy: -(.12 + Math.random() * .3), s: performance.now(), r: 1 + Math.random() * 1.6 });
+      }
+      function drawEffects(now) {
+        ctx.lineWidth = 1.2;
+        for (let i = ripples.length - 1; i >= 0; i--) {
+          const r = ripples[i];
+          const age = now - r.s;
+          if (age < 0) continue; // Protect against clock jitter within the same frame
+          const p = age / r.life;
+          if (p >= 1) { ripples.splice(i, 1); continue; }
+          for (let k = 0; k < 2; k++) {
+            const q = Math.max(0, p * (1 - k * 0.35));
+            const radX = Math.max(0.1, r.max * q);
+            const radY = Math.max(0.1, radX * 0.3);
+            ctx.strokeStyle = 'rgba(255,240,220,' + ((1 - p) * 0.5) + ')';
+            ctx.beginPath();
+            ctx.ellipse(r.x, r.y, radX, radY, 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+        for (let i = drops.length - 1; i >= 0; i--) {
+          const d = drops[i];
+          const a = now - d.s;
+          if (a < 0) continue;
+          if (a > 900) { drops.splice(i, 1); continue; }
+          const r = Math.max(0.1, d.r);
+          ctx.fillStyle = 'rgba(235,250,255,' + (0.85 * (1 - a / 900)) + ')';
+          ctx.beginPath();
+          ctx.arc(d.x + d.vx * a, d.y + d.vy * a + 0.5 * 0.0006 * a * a, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Sparkles effect for rare fish and VIP gifts
+        for (let i = sparkles.length - 1; i >= 0; i--) {
+          const sp = sparkles[i];
+          const age = now - sp.s;
+          if (age > sp.dur) { sparkles.splice(i, 1); continue; }
+          const prog = age / sp.dur;
+          const alpha = (1 - prog) * 0.9;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = sp.color;
+          ctx.shadowColor = sp.color;
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.arc(sp.x + sp.vx * age * 0.08, sp.y + sp.vy * age * 0.08, sp.size * (1 - prog * 0.4), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      function drawAmbientFish(t, leftW, rightW) {
+        const lakeH = H * (isPortrait ? 0.77 : 0.79) - horizon;
+        ctx.save();
+        ambientFish.forEach(f => {
+          // Update horizontal position
+          f.x += f.dir * f.speed;
+          if (f.dir > 0 && f.x > rightW + 80) f.x = leftW - 80;
+          else if (f.dir < 0 && f.x < leftW - 80) f.x = rightW + 80;
+
+          const bankY = getBankY(f.x);
+          const y = horizon + lakeH * f.depthFrac + Math.sin(t * 0.002 + f.wiggleOffset) * 4;
+          if (y >= bankY - 6) return;
+
+          const wiggle = Math.sin(t * 0.008 + f.wiggleOffset) * 3;
+          const len = f.size;
+          const headX = f.x + (f.dir > 0 ? len * 0.5 : -len * 0.5);
+          const tailX = f.x - (f.dir > 0 ? len * 0.5 : -len * 0.5);
+
+          // Water depth blur & shadow
+          ctx.fillStyle = 'rgba(6, 26, 36, 0.38)';
+          ctx.beginPath();
+          ctx.ellipse(f.x, y, len * 0.45, len * 0.16, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Wiggling fish tail
+          ctx.beginPath();
+          ctx.moveTo(tailX, y);
+          ctx.lineTo(tailX - (f.dir > 0 ? 5 : -5), y - 3 + wiggle);
+          ctx.lineTo(tailX - (f.dir > 0 ? 5 : -5), y + 3 + wiggle);
+          ctx.closePath();
+          ctx.fill();
+        });
+        ctx.restore();
+      }
+
+      /* ================= UNLIMITED ANGLERS LAYOUT ================= */
+      function allocateSlot(player) {
+        if (Number.isInteger(player.sceneSlot) && player.sceneSlot >= 0) {
+          const conflict = players.some(p => p !== player && p.sceneSlot === player.sceneSlot);
+          if (!conflict) return player.sceneSlot;
+        }
+        const used = new Set(players.filter(p => p !== player && Number.isInteger(p.sceneSlot)).map(p => p.sceneSlot));
+        let s = 0;
+        while (used.has(s)) s++;
+        player.sceneSlot = s;
+        return s;
+      }
+
+      function setSceneSlot(p, walkIn = false, slot = null) {
+        if (Number.isInteger(slot)) {
+          p.sceneSlot = slot;
+        } else if (!Number.isInteger(p.sceneSlot)) {
+          allocateSlot(p);
+        }
+        const pos = calculateSeatPos(p.sceneSlot, p.id);
+        p.targetX = pos.x;
+        p.targetY = pos.y;
+        p.isBackRow = pos.isBackRow;
+        if (walkIn) {
+          const sideOffset = (p.targetX < W * 0.5) ? -90 : 90;
+          p.sceneX = p.targetX + sideOffset;
+          p.enterStarted = performance.now();
+        } else {
+          p.sceneX = p.targetX;
+        }
+      }
+
+      function syncSceneRoster(walkIn = false) {
+        players.forEach(p => {
+          p.sceneVisible = true;
+          allocateSlot(p);
+          setSceneSlot(p, walkIn, p.sceneSlot);
+          preloadCharacter(p);
+        });
+        updateAnglerCount();
+      }
+
+      function updateAnglerCount() {
+        const countEl = document.querySelector('#anglerCount');
+        if (countEl) countEl.textContent = players.length;
+      }
+
+      function layout() {
+        const visible = players.filter(p => p.sceneVisible);
+        return visible.map((p, i) => {
+          if (!Number.isInteger(p.sceneSlot)) {
+            allocateSlot(p);
+            setSceneSlot(p, false, p.sceneSlot);
+          }
+          const pos = calculateSeatPos(p.sceneSlot, p.id);
+          p.targetX = pos.x;
+          p.targetY = pos.y;
+          p.isBackRow = pos.isBackRow;
+          if (Number.isFinite(p.enterStarted)) {
+            const q = clamp((performance.now() - p.enterStarted) / 1450, 0, 1), ease = q * q * (3 - 2 * q);
+            const sideOffset = (p.targetX < W * 0.5) ? -90 : 90;
+            p.sceneX = lerp(p.targetX + sideOffset, p.targetX, ease);
+            p.sceneAlpha = ease;
+            if (q >= 1) { p.sceneX = p.targetX; p.enterStarted = null; p.sceneAlpha = 1; }
+          } else if (Number.isFinite(p.leaveStarted)) {
+            const q = clamp((performance.now() - p.leaveStarted) / 1450, 0, 1), ease = q * q * (3 - 2 * q);
+            const sideOffset = (p.targetX < W * 0.5) ? -120 : 120;
+            p.sceneX = lerp(p.targetX, p.targetX + sideOffset, ease);
+            p.sceneAlpha = Math.max(0, 1 - ease);
+            if (q >= 1) {
+              p.leaveStarted = null;
+              removeScenePlayer(p.id);
+            }
+          } else {
+            p.sceneX = p.targetX;
+            p.sceneAlpha = 1;
+          }
+          const ax = p.sceneX, h = hash(p.id);
+          const estRodSpan = Math.min(65, Math.max(40, W * (isPortrait ? 0.07 : 0.05)));
+          const castDist = estRodSpan + 14 + (h % 10);
+          const bx = ax + castDist;
+          const by = horizon + (getBankY(ax) - horizon) * (isPortrait ? 0.62 : 0.66) + ((h >>> 8) % 18);
+          return { p, i, ax, ay: p.targetY, bx, by, isBackRow: pos.isBackRow };
+        });
+      }
+
+      function initializeScenePlayers(list) {
+        players = list || [];
+        players.forEach((p, idx) => {
+          p.sceneVisible = true;
+          p.sceneSlot = idx;
+          setSceneSlot(p, false, idx);
+          preloadCharacter(p);
+        });
+        updateAnglerCount();
+      }
+
+      function removeScenePlayer(pid) {
+        const idx = players.findIndex(p => String(p.id) === String(pid));
+        if (idx !== -1) {
+          players.splice(idx, 1);
+          updateAnglerCount();
+        }
+      }
+
+      function startPlayerLeave(pid) {
+        const p = players.find(x => String(x.id) === String(pid));
+        if (!p) return;
+        // Nếu người này đang có cá cắn, đang giật cần, hoặc đang được đọc thông báo:
+        // Đợi xong hoạt cảnh rồi mới rời bờ (thử lại tối đa 2 lần để tránh bị kẹt)
+        const isBusy = approachingCatches.has(pid) || activeCatches.has(pid) || (isPresentingCatch && String(currentPresentingPlayerId) === String(pid));
+        if (isBusy) {
+          if (!p._leaveRetryCount) p._leaveRetryCount = 0;
+          p._leaveRetryCount++;
+          if (p._leaveRetryCount < 3) {
+            setTimeout(() => startPlayerLeave(pid), 2000);
+            return;
+          }
+          // Quá 2 lần: dọn dẹp sạch trạng thái bận để nhân vật bước ra khỏi bờ ngay
+          approachingCatches.delete(pid);
+          activeCatches.delete(pid);
+        }
+        p._leaveRetryCount = 0;
+        if (!Number.isFinite(p.leaveStarted)) {
+          p.leaveStarted = performance.now();
+        }
+      }
+
+      function addScenePlayer(p) {
+        const existing = players.find(x => String(x.id) === String(p.id));
+        if (existing) {
+          if (p.characterId) existing.characterId = p.characterId;
+          if (p.username) existing.username = p.username;
+          existing.sceneVisible = true;
+          existing.leaveStarted = null;
+          existing._leaveRetryCount = 0;
+          // Luôn kích hoạt lại hoạt ảnh bước vào bờ
+          setSceneSlot(existing, true, existing.sceneSlot);
+          updateAnglerCount();
+          return true;
+        }
+        preloadCharacter(p);
+        p.sceneVisible = true;
+        p.leaveStarted = null;
+        p._leaveRetryCount = 0;
+        allocateSlot(p);
+        setSceneSlot(p, true, p.sceneSlot);
+        players.push(p);
+        updateAnglerCount();
+        return true;
+      }
+
+      function drawFish(col, t) {
+        const w = Math.sin(t * .03) * 3;
+        ctx.fillStyle = col || '#ffd166';
+        ctx.beginPath();
+        ctx.moveTo(-18, 0);
+        ctx.quadraticCurveTo(-30, -4 + w, -40, -13 + w);
+        ctx.quadraticCurveTo(-34, 0, -40, 13 + w);
+        ctx.quadraticCurveTo(-30, 4 + w, -18, 0);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-8, -9);
+        ctx.quadraticCurveTo(0, -23, 11, -9);
+        ctx.fill();
+        const g = ctx.createLinearGradient(0, -12, 0, 12);
+        g.addColorStop(0, '#e6b800');
+        g.addColorStop(0.5, col || '#ffd166');
+        g.addColorStop(1, '#ffffff');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(26, 0);
+        ctx.bezierCurveTo(18, -15, -6, -13, -20, -3);
+        ctx.lineTo(-20, 3);
+        ctx.bezierCurveTo(-6, 13, 18, 12, 26, 0);
+        ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(17, -3, 2.7, 0, 7); ctx.fill();
+        ctx.fillStyle = '#10242a'; ctx.beginPath(); ctx.arc(17.7, -3, 1.4, 0, 7); ctx.fill();
+      }
+
+      function drawBobber(L, t, now) {
+        const id = L.p.id;
+        const ap = approachingCatches.get(id);
+        const prog = ap ? clamp((now - ap.start) / CAST_VISUAL_MS, 0, 1) : 0;
+        let by = L.by + Math.sin(t * .003 + L.i) * 1.4;
+        if (ap) {
+          const side = hash(id) & 1 ? 1 : -1, e = prog * prog * (3 - 2 * prog), sx = lerp(L.bx + side * H * .38, L.bx, e), sy = lerp(L.by - H * .13, L.by + 3, e), k = .5 + .7 * e, wg = Math.sin(t * .02) * 4;
+          ctx.save();
+          ctx.translate(sx, sy);
+          ctx.scale(-side * k, k);
+          ctx.fillStyle = 'rgba(4,22,30,.5)';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 22, 8, 0, 0, 7);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(-18, 0);
+          ctx.lineTo(-34, -9 + wg);
+          ctx.lineTo(-34, 9 + wg);
+          ctx.fill();
+          ctx.restore();
+          by += Math.sin(t * .05) * 3 * prog * prog;
+          if (now > (nextRip[id] || 0)) {
+            addRipple(sx, sy, 16, 900);
+            if (prog > .6) addRipple(L.bx, by, 34, 1300);
+            nextRip[id] = now + 280;
+          }
+        } else if (now > (nextRip[id] || 0)) {
+          addRipple(L.bx, by, 12 + Math.random() * 8, 2200);
+          nextRip[id] = now + 1800 + Math.random() * 1500;
+        }
+        L.bobY = by;
+        if (L.tipX == null || L.tipY == null || (activeCatches.has(id) && activeCatches.get(id).init)) return;
+        ctx.fillStyle = 'rgba(255,110,90,.3)'; ctx.beginPath(); ctx.ellipse(L.bx, by + 9, 4, 2, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#f4efdc'; ctx.beginPath(); ctx.ellipse(L.bx, by + 1, 3.6, 4.5, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#ee4a3f'; ctx.beginPath(); ctx.ellipse(L.bx, by - 2, 3.6, 4.2, 0, Math.PI, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(L.bx - 1.5, by - 5, 1, 3);
+      }
+
+      function drawAngler(L, t, now) {
+        const p = L.p, id = p.id;
+        const ap = approachingCatches.has(id);
+        const catching = activeCatches.has(id);
+        const forcedOutcome = outcomePoses.get(id);
+
+        let pose = 'idle';
+        if (forcedGlobalPose && performance.now() < forcedPoseUntil) {
+          pose = forcedGlobalPose;
+        } else if (forcedOutcome && now < forcedOutcome.until) {
+          pose = forcedOutcome.pose;
+        } else if (catching) {
+          pose = 'catch';
+        } else if (ap) {
+          pose = 'bite';
+        } else if (Number.isFinite(p.enterStarted)) {
+          pose = (p.targetX < p.sceneX ? 'walkLeft' : 'walkRight');
+        } else if (Number.isFinite(p.leaveStarted)) {
+          pose = (p.targetX < W * 0.5) ? 'walkLeft' : 'walkRight';
+        }
+
+        // Graceful fallback: If pose image is not ready, fallback to idle image
+        let image = getCharacterImage(p.characterId, pose);
+        if (!image || !image.complete || !image.naturalWidth) {
+          image = getCharacterImage(p.characterId, 'idle');
+        }
+        if (!image || !image.complete || !image.naturalWidth) {
+          return; // Still loading idle image, skip this frame
+        }
+
+        const meta = CHARACTER_POSES[pose] || CHARACTER_POSES.idle;
+        const charMeta = CHARACTER_METRICS && CHARACTER_METRICS[p.characterId] && CHARACTER_METRICS[p.characterId][pose];
+
+        const anchorX = charMeta ? charMeta.anchorX : meta.anchor;
+        const groundY = charMeta ? charMeta.groundY : 0.985;
+        const baseHeight = isPortrait ? clamp(W * 0.25, 95, 220) : clamp(H * 0.235, 142, 184);
+        const targetHeight = L.isBackRow ? (baseHeight * 0.93) : baseHeight;
+        const scale = targetHeight / image.height;
+        const width = image.width * scale;
+        const height = targetHeight;
+
+        const baseX = L.ax - width * anchorX;
+        const baseY = L.ay - height * groundY;
+
+        const activeCoins = getPlayerActiveCoins(p.id);
+        const activeTier = getGiftTier(activeCoins);
+
+        // Shadow at feet & Glowing seat ring
+        ctx.save();
+        if (p.sceneAlpha != null && p.sceneAlpha < 1) {
+          ctx.globalAlpha = Math.max(0, p.sceneAlpha);
+        }
+        ctx.fillStyle = 'rgba(5,12,10,.35)';
+        ctx.beginPath();
+        ctx.ellipse(L.ax, L.ay + 3, Math.max(20, width * .22), 5, 0, 0, 7);
+        ctx.fill();
+
+        if (ap || catching) {
+          if (activeTier === 'large') {
+            // Vòng sáng đậm và vàng rực rỡ khi là quà lớn
+            ctx.shadowColor = '#ffb703';
+            ctx.shadowBlur = 25;
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(L.ax, L.ay + 3, Math.max(26, width * .26), 6.5, 0, 0, 7);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 245, 180, 0.6)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.ellipse(L.ax, L.ay + 3, Math.max(32, width * .32), 8.5, 0, 0, 7);
+            ctx.stroke();
+          } else if (activeTier === 'medium') {
+            // Màu xanh nhạt dịu cho quà vừa
+            ctx.shadowColor = '#72e6cf';
+            ctx.shadowBlur = 15;
+            ctx.strokeStyle = 'rgba(114, 230, 207, 0.85)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(L.ax, L.ay + 3, Math.max(23, width * .23), 5.5, 0, 0, 7);
+            ctx.stroke();
+          } else {
+            // Vàng ấm nhẹ cho quà thường
+            ctx.shadowColor = '#ffd9a0';
+            ctx.shadowBlur = 12;
+            ctx.strokeStyle = 'rgba(255,217,160,.65)';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.ellipse(L.ax, L.ay + 3, Math.max(22, width * .22), 5, 0, 0, 7);
+            ctx.stroke();
+          }
+          ctx.shadowBlur = 0;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(image, baseX, baseY, width, height);
+        ctx.restore();
+
+        // Fishing line rod tip coordinates
+        const isWalking = Number.isFinite(p.enterStarted) || Number.isFinite(p.leaveStarted);
+        if (isWalking || pose === 'walkLeft' || pose === 'walkRight' || pose === 'catch' || pose === 'miss') {
+          L.tipX = null;
+          L.tipY = null;
+        } else {
+          const tipXFrac = charMeta && charMeta.tipX !== null ? charMeta.tipX : meta.tip;
+          const tipYFrac = charMeta && charMeta.tipY !== null ? charMeta.tipY : (pose === 'bite' ? 0.04 : 0.01);
+          L.tipX = tipXFrac !== null ? baseX + width * tipXFrac : null;
+          L.tipY = tipYFrac !== null ? baseY + height * tipYFrac : null;
+          if (L.tipX != null) {
+            // Keep bobber tightly in front of this angler's rod tip (never reaching neighbor!)
+            L.bx = L.tipX + 16 + ((hash(p.id) % 12));
+          }
+        }
+
+        // Name tag & Gift Badge centered over character head
+        const name = p.username.length > 12 ? p.username.slice(0, 11) + '…' : p.username;
+        ctx.save();
+        ctx.translate(L.ax, baseY - 8);
+        ctx.font = '600 ' + (isPortrait ? '10px' : '11px') + ' Inter,system-ui';
+        const tw = ctx.measureText(name).width, padX = 7, hBox = isPortrait ? 18 : 20, wBox = tw + padX * 2;
+
+        // Name box
+        ctx.fillStyle = 'rgba(4,14,20,.82)';
+        ctx.strokeStyle = activeTier === 'large' ? 'rgba(255,215,0,.9)' : activeTier === 'medium' ? 'rgba(114,230,207,.75)' : (ap || catching ? 'rgba(255,217,160,.6)' : 'rgba(255,255,255,.15)');
+        ctx.lineWidth = activeTier === 'large' ? 1.6 : 1;
+        ctx.beginPath();
+        ctx.roundRect(-wBox / 2, -hBox, wBox, hBox, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(name, 0, -hBox / 2);
+
+        ctx.restore();
+
+        if (debugOverlayEnabled) {
+          ctx.save();
+          ctx.strokeStyle = '#00ff88';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(L.ax, L.ay, 4, 0, 7);
+          ctx.stroke();
+          if (L.tipX != null && L.tipY != null) {
+            ctx.strokeStyle = '#ff0055';
+            ctx.beginPath();
+            ctx.arc(L.tipX, L.tipY, 4, 0, 7);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
+      function drawLine(L) {
+        if (L.tipX == null || L.tipY == null) return;
+        if (activeCatches.has(L.p.id) && activeCatches.get(L.p.id).init) return;
+        const x0 = L.tipX, y0 = L.tipY, x1 = L.bx, y1 = L.bobY || L.by;
+        const id = L.p.id, ap = approachingCatches.has(id);
+        const dx = x1 - x0, dy = y1 - y0, dist = Math.hypot(dx, dy);
+        if (dist < 4) return;
+        const sag = ap ? dist * 0.04 : dist * 0.14;
+        const midX = (x0 + x1) * 0.5, midY = (y0 + y1) * 0.5 + sag;
+        ctx.save();
+        ctx.strokeStyle = ap ? 'rgba(255,225,180,.85)' : 'rgba(240,245,250,.65)';
+        ctx.lineWidth = ap ? 1.4 : 1.0;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.quadraticCurveTo(midX, midY, x1, y1);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawCatch(t) {
+        if (!activeCatches.size) return;
+        const now = performance.now();
+        activeCatches.forEach((c, playerId) => {
+          const L = lay[playerId];
+          if (!L) { activeCatches.delete(playerId); return; }
+          const isLg = c.tier === 'large';
+          if (!c.init) {
+            c.init = true;
+            c.p0 = { x: L.bx, y: L.bobY || L.by };
+            c.p2 = { x: L.ax, y: L.ay - (isPortrait ? 25 : 35) };
+            c.p1 = { x: (c.p0.x + c.p2.x) / 2, y: Math.min(c.p0.y, c.p2.y) - (isPortrait ? H * 0.28 : H * 0.38) };
+
+            // Yêu cầu 5: Quà lớn nhiều bọt nước và gợn nước hơn
+            splash(c.p0.x, c.p0.y, isLg ? 45 : 20);
+            addRipple(c.p0.x, c.p0.y, isLg ? 80 : 45, isLg ? 2400 : 1600);
+          }
+          const p = (now - c.start) / 1900;
+          if (p >= 1) {
+            splash(c.p2.x, c.p2.y, isLg ? 26 : 14);
+            outcomePoses.set(playerId, { pose: 'catch', until: now + 1700 });
+            activeCatches.delete(playerId);
+            return;
+          }
+          const u = clamp(p / .8, 0, 1), inv = 1 - u;
+          const fx = inv * inv * c.p0.x + 2 * inv * u * c.p1.x + u * u * c.p2.x;
+          const fy = inv * inv * c.p0.y + 2 * inv * u * c.p1.y + u * u * c.p2.y;
+
+          if (isLg && Math.random() < 0.4 && p < 0.85) {
+            drops.push({ x: fx, y: fy, vx: (Math.random() - .5) * .08, vy: .03, s: now, r: 1.4 + Math.random() * 2 });
+          }
+          if (isLg && Math.random() < 0.65 && p < 0.95) {
+            sparkles.push({
+              x: fx + (Math.random() - .5) * 20,
+              y: fy + (Math.random() - .5) * 20,
+              vx: (Math.random() - .5) * 0.9,
+              vy: (Math.random() - .5) * 0.9 - 0.4,
+              s: now,
+              dur: 700 + Math.random() * 450,
+              size: 1.8 + Math.random() * 2.5,
+              color: Math.random() < 0.65 ? '#ffd700' : '#ffffff'
+            });
+          }
+
+          ctx.save();
+          ctx.translate(fx, fy);
+          // Yêu cầu 5: Cá bay to hơn
+          const fishScale = (isLg ? 2.3 : 1.3) * (c.fish.size || 1);
+          ctx.scale(fishScale, fishScale);
+          ctx.rotate(Math.atan2(fy - c.p1.y, fx - c.p1.x) + Math.PI / 2);
+          if (isLg) {
+            ctx.shadowColor = '#ffd166';
+            ctx.shadowBlur = 22;
+          }
+          drawFish(c.color || '#ffd166', t);
+          ctx.restore();
+          if (L.tipX != null && L.tipY != null) {
+            ctx.strokeStyle = 'rgba(255,245,220,.85)';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(L.tipX, L.tipY);
+            ctx.lineTo(fx, fy);
+            ctx.stroke();
+          }
+        });
+      }
+
+      function drawReeds(t) {
+        reeds.forEach(r => {
+          const tipX = r.x + r.lean * (14 + Math.sin(t * .0016 + r.p) * 7);
+          ctx.strokeStyle = '#18332a';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(r.x, r.b);
+          ctx.quadraticCurveTo(r.x + r.lean * 4, r.b - r.h * .6, tipX, r.b - r.h);
+          ctx.stroke();
+        });
+      }
+
+      function drawDust(t) {
+        ctx.fillStyle = '#ffd9a0';
+        dust.forEach((d, i) => {
+          const x = (d.x * W + Math.sin(t * .0008 + d.p) * 20) % W, y = (d.y * H + Math.cos(t * .0006 + d.p) * 15) % H;
+          ctx.globalAlpha = .12 + .25 * Math.sin(t * .002 + i);
+          ctx.fillRect(x, y, d.s * 1.5, d.s * 1.5);
+        });
+        ctx.globalAlpha = 1;
+      }
+
+      /* ================= DYNAMIC CONTINUOUS SCENERY ================= */
+      function drawDynamicScene(t, leftW, rightW) {
+        const now = performance.now();
+        const worldSpan = rightW - leftW;
+        const sunWorldX = W * 0.5 + camera.x * 0.08;
+
+        // 1. Seamless Sky
+        const skyGrad = ctx.createLinearGradient(0, -H * 0.6, 0, horizon);
+        skyGrad.addColorStop(0, '#14283f');
+        skyGrad.addColorStop(0.4, '#4a6a86');
+        skyGrad.addColorStop(0.72, '#d9a58d');
+        skyGrad.addColorStop(1, '#ffd9a0');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(leftW - 300, -H * 0.8, worldSpan + 600, horizon + H * 0.8);
+
+        // 2. Sunset Glow & Sun Disk
+        const r = ctx.createRadialGradient(sunWorldX, sunY, 0, sunWorldX, sunY, H * 0.6);
+        r.addColorStop(0, 'rgba(255,238,200,.95)');
+        r.addColorStop(0.07, 'rgba(255,216,150,.6)');
+        r.addColorStop(0.3, 'rgba(255,170,120,.2)');
+        r.addColorStop(1, 'rgba(255,170,120,0)');
+        ctx.fillStyle = r;
+        ctx.fillRect(leftW - 300, -H * 0.8, worldSpan + 600, horizon + H * 0.8);
+
+        ctx.fillStyle = '#fff7df';
+        ctx.beginPath();
+        ctx.arc(sunWorldX, sunY, H * (isPortrait ? 0.032 : 0.026), 0, 7);
+        ctx.fill();
+
+        // Sun rays
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 7; i++) {
+          const a = -Math.PI / 2 + (i - 3) * 0.22, l = H * 0.7;
+          const rg = ctx.createLinearGradient(sunWorldX, sunY, sunWorldX + Math.cos(a) * l, sunY + Math.sin(a) * l);
+          rg.addColorStop(0, 'rgba(255,215,160,.12)');
+          rg.addColorStop(1, 'rgba(255,215,160,0)');
+          ctx.fillStyle = rg;
+          ctx.beginPath();
+          ctx.moveTo(sunWorldX, sunY);
+          ctx.lineTo(sunWorldX + Math.cos(a - 0.03) * l, sunY + Math.sin(a - 0.03) * l);
+          ctx.lineTo(sunWorldX + Math.cos(a + 0.03) * l, sunY + Math.sin(a + 0.03) * l);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // 3. Continuous Mountains
+        const mtnColors = [
+          { col: '#c0919c', amp: 0.12, freq: 0.0022, phase: 1.2 },
+          { col: '#8a7595', amp: 0.09, freq: 0.0038, phase: 2.7 },
+          { col: '#4a5d73', amp: 0.065, freq: 0.006, phase: 4.1 },
+          { col: '#2a4345', amp: 0.038, freq: 0.011, phase: 5.5 }
+        ];
+        mtnColors.forEach(m => {
+          ctx.fillStyle = m.col;
+          ctx.beginPath();
+          ctx.moveTo(leftW - 100, horizon);
+          for (let x = leftW - 100; x <= rightW + 100; x += 10) {
+            const y = horizon - H * m.amp * (0.55 + 0.3 * Math.sin(x * m.freq + m.phase) + 0.15 * Math.sin(x * m.freq * 2.3 + m.phase));
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(rightW + 100, horizon);
+          ctx.fill();
+        });
+
+        // Distant tree silhouette
+        ctx.fillStyle = '#16292a';
+        for (let x = Math.floor((leftW - 50) / 8) * 8; x <= rightW + 50; x += 8) {
+          const treeH = 7 + (hash('tree' + x) % 18);
+          ctx.fillRect(x - 4, horizon - treeH, 8, treeH + 1);
+        }
+
+        // 4. Clouds
+        clouds.forEach(c => {
+          const x = ((c.fx * W + t * c.v) % (W + 500)) - 250;
+          ctx.globalAlpha = .85;
+          ctx.drawImage(c.s, x, c.fy * H, 360 * c.k, 110 * c.k);
+        });
+        ctx.globalAlpha = 1;
+
+        // 5. Water Surface
+        const waterGrad = ctx.createLinearGradient(0, horizon, 0, H * (isPortrait ? 0.77 : 0.79));
+        waterGrad.addColorStop(0, '#f0b98f');
+        waterGrad.addColorStop(0.1, '#8f98a0');
+        waterGrad.addColorStop(0.38, '#2e6e78');
+        waterGrad.addColorStop(1, '#0b2e3a');
+        ctx.fillStyle = waterGrad;
+        ctx.beginPath();
+        ctx.moveTo(leftW - 100, horizon);
+        ctx.lineTo(rightW + 100, horizon);
+        for (let x = rightW + 100; x >= leftW - 100; x -= 14) {
+          ctx.lineTo(x, getBankY(x));
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Water ripples
+        ctx.lineCap = 'round';
+        const span = H * (isPortrait ? 0.78 : 0.8) - horizon;
+        for (let i = 0; i < 70; i++) {
+          const u = (i * .61803) % 1, y = horizon + (u * u * .85 + .02) * span, d = (y - horizon) / span;
+          const x = ((i * 977.3) % W + t * .008 * (.3 + d)) % W, len = 8 + d * 50, wob = Math.sin(t * .002 + i);
+          ctx.globalAlpha = .05 + .14 * d;
+          ctx.strokeStyle = i % 3 ? '#e6dcc6' : '#6fa8ad';
+          ctx.lineWidth = .5 + d * 1.4;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.quadraticCurveTo(x + len / 2, y - (1 + d * 3) * wob, x + len, y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        // Water glint column under sun
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 45; i++) {
+          const u = ((i * 0.7548) % 1), d = Math.pow(u, 1.4);
+          const y = horizon + 3 + d * (H * 0.42);
+          const sp = 6 + d * H * 0.14;
+          const x = sunWorldX + Math.sin(i * 12.9 + t * 0.0012 * (1 + i % 3)) * sp;
+          const len = (8 + d * 52) * (0.5 + 0.5 * Math.sin(t * 0.004 + i * 3));
+          if (x + len >= leftW - 50 && x - len <= rightW + 50) {
+            ctx.fillStyle = 'rgba(255,226,170,' + (0.8 * (1 - d * 0.65)) + ')';
+            ctx.fillRect(x - len / 2, y, len, 1 + d * 1.8);
+          }
+        }
+        ctx.restore();
+
+        // 5.5 Ambient swimming fish shadows in the lake
+        drawAmbientFish(t, leftW, rightW);
+
+        // 6. Continuous Riverbank (Grassy Shore)
+        const bankGrad = ctx.createLinearGradient(0, H * 0.74, 0, H * 1.6);
+        bankGrad.addColorStop(0, '#69773f');
+        bankGrad.addColorStop(0.25, '#37512f');
+        bankGrad.addColorStop(1, '#111b15');
+        ctx.fillStyle = bankGrad;
+        ctx.beginPath();
+        ctx.moveTo(leftW - 100, H * 1.8);
+        for (let x = leftW - 100; x <= rightW + 100; x += 10) {
+          ctx.lineTo(x, getBankY(x));
+        }
+        ctx.lineTo(rightW + 100, H * 1.8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Highlight line on grass edge
+        ctx.strokeStyle = 'rgba(255,215,165,0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = leftW - 100; x <= rightW + 100; x += 10) {
+          ctx[x === leftW - 100 ? 'moveTo' : 'lineTo'](x, getBankY(x) - 1);
+        }
+        ctx.stroke();
+
+        // Procedural grass blades
+        for (let x = Math.floor((leftW - 50) / 16) * 16; x <= rightW + 50; x += 16) {
+          const h = hash('grass' + x);
+          const y0 = getBankY(x);
+          const bladeH = 6 + (h % 10);
+          const lean = ((h % 5) - 2) * 1.5;
+          ctx.strokeStyle = 'rgba(110,165,70,0.4)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x, y0 + 1);
+          ctx.lineTo(x + lean, y0 - bladeH);
+          ctx.stroke();
+        }
+
+        // 7. Anglers & Bobbers (Frustum culled for performance)
+        const items = layout();
+        // Back anglers render first, front anglers on top
+        items.sort((a, b) => a.ay - b.ay);
+
+        items.forEach(L => {
+          lay[L.p.id] = L;
+          if (L.ax >= leftW - 150 && L.ax <= rightW + 150) {
+            drawBobber(L, t, now);
+          }
+        });
+
+        drawEffects(now);
+
+        items.forEach(L => {
+          if (L.ax >= leftW - 150 && L.ax <= rightW + 150) {
+            drawAngler(L, t, now);
+            drawLine(L);
+          }
+        });
+
+        drawReeds(t);
+        drawDust(t);
+      }
+
+      function getCameraBounds() {
+        let minX = W * 0.5, maxX = W * 0.5;
+        players.forEach(p => {
+          const px = p.sceneX != null ? p.sceneX : (p.targetX || 0);
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+        });
+        const margin = Math.max(W * 0.5, 300);
+        return {
+          minCamX: (W * 0.5 - maxX) - margin,
+          maxCamX: (W * 0.5 - minX) + margin
+        };
+      }
+
+      /* ================= FRAME-BY-FRAME CAMERA & SPOTLIGHT DECISION ================= */
+      function updateSpotlightAndCamera(t, now) {
+        // 1. Tự dọn trạng thái bị kẹt: cá cắn quá lâu, hoặc người không còn trên bờ
+        approachingCatches.forEach((ap, pid) => {
+          const isWaitingInQueue = catchPresentationQueue.some(item => (item.e.playerId || resolvePlayer(item.e)) === pid);
+          if (!isWaitingInQueue && (now - ap.start > APPROACH_TIMEOUT_MS || !players.some(p => p.id === pid))) {
+            approachingCatches.delete(pid);
+          }
+        });
+        activeCatches.forEach((c, pid) => {
+          if (now - c.start > 2600 || !players.some(p => p.id === pid)) {
+            activeCatches.delete(pid);
+          }
+        });
+        for (let i = zoomQueue.length - 1; i >= 0; i--) {
+          if (!players.some(p => p.id === zoomQueue[i].playerId)) {
+            zoomQueue.splice(i, 1);
+          }
+        }
+
+        // 2. Quản lý chuyển đổi người được zoom
+        if (currentZoomTarget) {
+          const stillInPlayers = players.some(p => p.id === currentZoomTarget.playerId);
+          const hasActiveEvent = approachingCatches.has(currentZoomTarget.playerId) || activeCatches.has(currentZoomTarget.playerId);
+          const minTimePassed = now >= currentZoomTarget.minEndTime;
+          const maxTimePassed = now >= (currentZoomTarget.startTime + getZoomDuration(currentZoomTarget.tier) + 1800);
+          const isBeingVoiced = isPresentingCatch && (currentPresentingPlayerId === currentZoomTarget.playerId);
+
+          // Phải đọc xong thông báo của người này (không còn isBeingVoiced) mới được chuyển cảnh sang người khác!
+          if (!isBeingVoiced && (!stillInPlayers || (minTimePassed && !hasActiveEvent) || maxTimePassed)) {
+            // Nếu vẫn đang có thông báo chờ trong hàng đợi catchPresentationQueue, giữ camera ổn định
+            if (catchPresentationQueue.length === 0) {
+              currentZoomTarget = null;
+              lastZoomEndTime = now;
+            }
+          }
+        } else if (!isPresentingCatch && zoomQueue.length > 0 && now >= (lastZoomEndTime + ZOOM_GAP)) {
+          // Tiếp tục zoom vào người tiếp theo trong hàng chờ khi không có ai đang được đọc thông báo
+          const nextItem = zoomQueue.shift();
+          if (players.some(p => p.id === nextItem.playerId)) {
+            startZoom(nextItem, now);
+          }
+        }
+
+        // Cập nhật banner "🎁 Quà lớn đang chờ: N"
+        const qBanner = document.querySelector('#spotlightQueueBanner');
+        const qCount = document.querySelector('#spotlightQueueCount');
+        if (qBanner && qCount) {
+          const largeWaiting = zoomQueue.filter(q => q.tier === 'large').length;
+          if (largeWaiting > 0) {
+            qCount.textContent = largeWaiting;
+            qBanner.classList.remove('hidden');
+          } else {
+            qBanner.classList.add('hidden');
+          }
+        }
+
+        spotlightDarkAlpha = 0;
+
+        // 3. Quyết định Camera mỗi frame (nếu người dùng không kéo chuột thủ công)
+        if (isDragging) return;
+
+        // TH 1: Đang có người tặng quà được Zoom -> Cận cảnh người đó, đưa vào gần giữa
+        if (currentZoomTarget) {
+          const L = lay[currentZoomTarget.playerId] || layout().find(l => l.p.id === currentZoomTarget.playerId);
+          if (L) {
+            camera.targetX = (W / 2 - L.ax);
+            camera.targetY = clamp((H * 0.58 - L.ay) * 0.65, -H * 0.35, H * 0.1);
+            camera.targetZ = getZoomScale(currentZoomTarget.tier); // Chỉ người tặng quà (coins > 0) mới zoom
+            lastActivityTime = now;
+            return;
+          }
+        }
+
+        // TH 1.2: Người chơi miễn phí (0 xu) đang giật cần / cắn câu -> Chỉ lia cam có tầm nhìn, KHÔNG ZOOM!
+        if (currentPanTarget && now < currentPanTarget.endTime) {
+          const L = lay[currentPanTarget.playerId] || layout().find(l => l.p.id === currentPanTarget.playerId);
+          if (L) {
+            camera.targetX = (W / 2 - L.ax);
+            camera.targetY = -H * 0.035;
+            camera.targetZ = getDefaultZoom(); // Giữ nguyên góc quay rộng, không phóng to
+            lastActivityTime = now;
+            return;
+          }
+        } else if (currentPanTarget && now >= currentPanTarget.endTime) {
+          currentPanTarget = null;
+        }
+
+        // TH 1.5: Đúng 1 người đang hoạt động (cá cắn hoặc cá bay) và không có ai trong hàng chờ, không đang đọc thông báo
+        const allActivePids = [...new Set([...approachingCatches.keys(), ...activeCatches.keys()])];
+        if (!isPresentingCatch && allActivePids.length === 1 && zoomQueue.length === 0) {
+          const singlePid = allActivePids[0];
+          const L = lay[singlePid] || layout().find(l => l.p.id === singlePid);
+          if (L) {
+            const activeCoins = getPlayerActiveCoins(singlePid);
+            camera.targetX = (W / 2 - L.ax);
+            if (activeCoins > 0) {
+              // Chỉ người tặng quà mới zoom!
+              const activeTier = getGiftTier(activeCoins);
+              camera.targetY = clamp((H * 0.58 - L.ay) * 0.65, -H * 0.35, H * 0.1);
+              camera.targetZ = getZoomScale(activeTier);
+            } else {
+              // Người chơi miễn phí: Chỉ lia camera có tầm nhìn, KHÔNG zoom!
+              camera.targetY = -H * 0.035;
+              camera.targetZ = getDefaultZoom();
+            }
+            lastActivityTime = now;
+            return;
+          }
+        }
+
+        // TH 2: Vừa hết lượt zoom, giữ camera thêm một lúc
+        if (now < (lastZoomEndTime + ZOOM_HOLD_AFTER)) {
+          lastActivityTime = now;
+          return;
+        }
+
+        // TH 3: Hết sự kiện và hàng chờ trống -> Mở góc quay rộng và từ từ di chuyển camera bao quát các nhân vật
+        if (now - lastActivityTime >= 1000) {
+          camera.targetZ = getDefaultZoom();
+
+          const activeList = players.filter(p => p.sceneVisible !== false);
+          if (activeList.length <= 1) {
+            // Không có hoặc chỉ có 1 người: Căn giữa nhẹ nhàng
+            const singleP = activeList[0];
+            const singleAx = singleP ? (singleP.sceneX != null ? singleP.sceneX : (singleP.targetX || W * 0.5)) : W * 0.5;
+            camera.targetX = (W * 0.5 - singleAx);
+            camera.targetY = -H * 0.035;
+          } else {
+            // Có từ 2 nhân vật trở lên:
+            let minAx = Infinity, maxAx = -Infinity;
+            activeList.forEach(p => {
+              const ax = p.sceneX != null ? p.sceneX : (p.targetX || W * 0.5);
+              if (ax < minAx) minAx = ax;
+              if (ax > maxAx) maxAx = ax;
+            });
+
+            const midAx = (minAx + maxAx) / 2;
+            const spanAx = maxAx - minAx;
+            const visibleWorldW = W / camera.targetZ;
+
+            // Nếu các cần thủ (ví dụ 5 người) đã nằm gọn trong tầm nhìn góc rộng:
+            // Giữ camera ổn định để luôn nhìn thấy đủ 5 người cùng lúc trên màn hình!
+            let idleOffset = 0;
+            if (spanAx + 100 < visibleWorldW) {
+              const idlePhase = (now - lastActivityTime - 1000) * (2 * Math.PI / 18000);
+              idleOffset = Math.sin(idlePhase) * Math.min(16, (visibleWorldW - spanAx - 100) * 0.25);
+            } else {
+              const maxWander = Math.min(spanAx * 0.35, Math.max(W * 0.25, 120));
+              const idlePhase = (now - lastActivityTime - 1000) * (2 * Math.PI / 14000);
+              idleOffset = Math.sin(idlePhase) * maxWander;
+            }
+
+            camera.targetX = (W * 0.5 - midAx) + idleOffset;
+            camera.targetY = -H * 0.035;
+          }
+        }
+      }
+
+      function frame(t) {
+        requestAnimationFrame(frame);
+        try {
+          const now = performance.now();
+
+          // Calculate live FPS
+          if (!frame.lastTime) { frame.lastTime = t; frame.count = 0; }
+          frame.count++;
+          if (t - frame.lastTime >= 500) {
+            const fps = Math.round((frame.count * 1000) / (t - frame.lastTime));
+            const fpsEl = document.querySelector('#fpsValue');
+            if (fpsEl) fpsEl.textContent = fps;
+            frame.count = 0;
+            frame.lastTime = t;
+          }
+
+          // Cập nhật trạng thái Camera & Spotlight mỗi frame dựa trên trạng thái hiện tại (không dùng timer)
+          updateSpotlightAndCamera(t, now);
+
+          ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+          ctx.fillStyle = '#07141b';
+          ctx.fillRect(0, 0, W, H);
+
+          // Clamp camera targets within dynamic bounds
+          const bounds = getCameraBounds();
+          camera.targetX = clamp(camera.targetX, bounds.minCamX, bounds.maxCamX);
+          camera.targetY = clamp(camera.targetY, -H * 0.35, H * 0.35);
+          camera.targetZ = clamp(camera.targetZ, camera.minZ, camera.maxZ);
+
+          camera.x = lerp(camera.x, camera.targetX, 0.08);
+          camera.y = lerp(camera.y, camera.targetY, 0.08);
+          camera.z = lerp(camera.z, camera.targetZ, 0.08);
+
+          // Update zoom percentage display
+          const zoomPercentEl = document.querySelector('#zoomPercent');
+          if (zoomPercentEl) zoomPercentEl.textContent = Math.round(camera.z * 100) + '%';
+
+          ctx.translate(W / 2, H / 2);
+          ctx.scale(camera.z, camera.z);
+          ctx.translate(-W / 2 + camera.x, -H / 2 + camera.y);
+
+          const leftW = (0 - W / 2) / camera.z + W / 2 - camera.x;
+          const rightW = (W - W / 2) / camera.z + W / 2 - camera.x;
+
+          drawDynamicScene(t, leftW, rightW);
+          drawCatch(t);
+
+          ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+          ctx.drawImage(vig, 0, 0, W, H);
+        } catch (err) {
+          if (!frame.err) {
+            frame.err = 1;
+            console.error('Frame render error:', err);
+            document.querySelector('#liveStatus').textContent = 'Lỗi vẽ: ' + err.message;
+          }
+        }
+      }
+      requestAnimationFrame(frame);
+
+
+      /* ================= POINTER DRAG & ZOOM CONTROLS ================= */
+      let isDragging = false;
+      let dragStartX = 0, dragStartY = 0;
+      let camStartX = 0, camStartY = 0;
+      let lastPinchDist = 0;
+
+      canvas.addEventListener('pointerdown', e => {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        camStartX = camera.targetX;
+        camStartY = camera.targetY;
+        canvas.style.cursor = 'grabbing';
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) { }
+      });
+
+      canvas.addEventListener('pointermove', e => {
+        if (!isDragging) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        camera.targetX = camStartX + dx / camera.z;
+        camera.targetY = clamp(camStartY + dy / camera.z, -H * 0.4, H * 0.4);
+      });
+
+      const endDrag = e => {
+        if (isDragging) {
+          isDragging = false;
+          canvas.style.cursor = 'grab';
+          try { canvas.releasePointerCapture(e.pointerId); } catch (_) { }
+        }
+      };
+      canvas.addEventListener('pointerup', endDrag);
+      canvas.addEventListener('pointercancel', endDrag);
+
+      canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
+        const oldZ = camera.targetZ;
+        const newZ = clamp(oldZ * zoomFactor, camera.minZ, camera.maxZ);
+        if (newZ === oldZ) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const worldX = (mouseX - W / 2) / oldZ - camera.targetX + W / 2;
+        const worldY = (mouseY - H / 2) / oldZ - camera.targetY + H / 2;
+
+        camera.targetZ = newZ;
+        camera.targetX = (mouseX - W / 2) / newZ - worldX + W / 2;
+        camera.targetY = clamp((mouseY - H / 2) / newZ - worldY + H / 2, -H * 0.4, H * 0.4);
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', e => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          const t1 = e.touches[0], t2 = e.touches[1];
+          const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          if (lastPinchDist > 0) {
+            const factor = dist / lastPinchDist;
+            camera.targetZ = clamp(camera.targetZ * factor, camera.minZ, camera.maxZ);
+          }
+          lastPinchDist = dist;
+        }
+      }, { passive: false });
+      canvas.addEventListener('touchend', e => {
+        if (e.touches.length < 2) lastPinchDist = 0;
+      });
+
+      document.querySelector('#zoomInBtn')?.addEventListener('click', () => {
+        camera.targetZ = clamp(camera.targetZ * 1.25, camera.minZ, camera.maxZ);
+      });
+      document.querySelector('#zoomOutBtn')?.addEventListener('click', () => {
+        camera.targetZ = clamp(camera.targetZ * 0.8, camera.minZ, camera.maxZ);
+      });
+      document.querySelector('#recenterBtn')?.addEventListener('click', () => {
+        camera.targetX = 0;
+        camera.targetY = 0;
+        camera.targetZ = getDefaultZoom();
+      });
+
+      /* ================= UI + SOCKET ================= */
+      function setStatus(connected, label) {
+        const dot = document.querySelector('#liveDot');
+        if (dot) dot.className = 'w-2 h-2 rounded-full ' + (connected ? 'bg-rose-400 animate-ping' : 'bg-amber-300');
+      }
+
+      function updateStreamStats(stats) {
+        if (!stats) return;
+        const v = stats.viewerCount != null ? stats.viewerCount : 1280;
+        const vText = v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v);
+        const viewEl = document.querySelector('#viewerCountVal');
+        const mobViewEl = document.querySelector('#mobViewers');
+        if (viewEl) viewEl.textContent = vText;
+        if (mobViewEl) mobViewEl.textContent = vText;
+
+        const aCount = stats.totalPlayers != null ? stats.totalPlayers : players.length;
+        const aEl = document.querySelector('#anglerCount');
+        const mobAEl = document.querySelector('#mobAnglers');
+        if (aEl) aEl.textContent = aCount;
+        if (mobAEl) mobAEl.textContent = aCount;
+
+        const g = stats.totalGifts != null ? stats.totalGifts : 0;
+        const gEl = document.querySelector('#totalGiftsVal');
+        const mobGEl = document.querySelector('#mobGifts');
+        if (gEl) gEl.textContent = g;
+        if (mobGEl) mobGEl.textContent = g;
+
+        if (stats.top1Angler && stats.top1Angler.username) {
+          const top1Name = document.querySelector('#top1CrownName');
+          const top1Score = document.querySelector('#top1CrownScore');
+          const mobTop1 = document.querySelector('#mobTop1Name');
+          if (top1Name) top1Name.textContent = stats.top1Angler.username;
+          if (top1Score) top1Score.textContent = (stats.top1Angler.score || 0) + 'đ';
+          if (mobTop1) mobTop1.textContent = stats.top1Angler.username;
+        }
+      }
+
+      function renderLeaderboard() {
+        const tabAnglersBtn = document.querySelector('#tabAnglersBtn');
+        const tabDonorsBtn = document.querySelector('#tabDonorsBtn');
+        const cornerLdTitle = document.querySelector('#cornerLdTitle');
+        if (cornerLdTitle) {
+          cornerLdTitle.textContent = activeLeaderboardTab === 'anglers' ? 'TOP CẦN THỦ' : 'TOP ỦNG HỘ';
+        }
+        if (tabAnglersBtn && tabDonorsBtn) {
+          if (activeLeaderboardTab === 'anglers') {
+            tabAnglersBtn.className = 'px-1.5 py-0.5 rounded bg-emerald-400/30 text-emerald-200 font-bold transition-all';
+            tabDonorsBtn.className = 'px-1.5 py-0.5 rounded text-white/40 hover:text-white font-bold transition-all';
+          } else {
+            tabDonorsBtn.className = 'px-1.5 py-0.5 rounded bg-amber-400/30 text-amber-200 font-bold transition-all';
+            tabAnglersBtn.className = 'px-1.5 py-0.5 rounded text-white/40 hover:text-white font-bold transition-all';
+          }
+        }
+
+        const list = activeLeaderboardTab === 'anglers' ? currentTopAnglers : currentTopDonors;
+        const listEl = document.querySelector('#cornerLeaderboardList');
+        const emptyEl = document.querySelector('#leaderboardEmpty');
+
+        if (!list || !list.length) {
+          if (emptyEl) emptyEl.classList.remove('hidden');
+          if (listEl) listEl.innerHTML = '';
+          return;
+        }
+
+        if (emptyEl) emptyEl.classList.add('hidden');
+
+        const isAnglerTab = activeLeaderboardTab === 'anglers';
+
+        // Cập nhật Top 1 Ticker ở Top HUD
+        const top1 = list[0];
+        if (top1) {
+          const top1Name = document.querySelector('#top1CrownName');
+          const top1Score = document.querySelector('#top1CrownScore');
+          const mobTop1 = document.querySelector('#mobTop1Name');
+          if (top1Name) top1Name.textContent = top1.username;
+          if (top1Score) {
+            if (isAnglerTab) {
+              const w = Number(top1.totalWeight || 0);
+              top1Score.textContent = `${w >= 10 ? w.toFixed(1) : w.toFixed(2)} kg`;
+            } else {
+              top1Score.textContent = `${(top1.totalCoins || 0).toLocaleString()} xu`;
+            }
+          }
+          if (mobTop1) mobTop1.textContent = top1.username;
+        }
+
+        // Render danh sách BXH Top 10 với đơn vị kg chuẩn xác
+        if (listEl) {
+          const topSlice = list.slice(0, 10);
+          const newRankMap = new Map();
+
+          listEl.innerHTML = topSlice.map((p, idx) => {
+            const rank = idx + 1;
+            const isTop1 = rank === 1;
+            const isTop2 = rank === 2;
+            const isTop3 = rank === 3;
+            const medal = isTop1 ? '🥇' : isTop2 ? '🥈' : isTop3 ? '🥉' : `<span class="text-white/40 text-[9px] w-3 text-center font-bold">${rank}</span>`;
+
+            // Kiểm tra vượt hạng (Rank up animation)
+            const oldRank = previousRankMap.get(p.id);
+            const isRankUp = oldRank != null && oldRank > rank;
+            newRankMap.set(p.id, rank);
+
+            let scoreText = '';
+            if (isAnglerTab) {
+              const w = Number(p.totalWeight || 0);
+              scoreText = `${w >= 10 ? w.toFixed(1) : w.toFixed(2)} kg`;
+            } else {
+              scoreText = `${(p.totalCoins || 0).toLocaleString()} xu`;
+            }
+
+            let rowBg = 'text-white/80 hover:bg-white/5';
+            let nameColor = 'text-white/90';
+            let scoreColor = isAnglerTab ? 'text-emerald-300' : 'text-amber-300';
+
+            if (isTop1) {
+              rowBg = 'bg-amber-400/20 border border-amber-400/35 text-amber-200 font-bold';
+              nameColor = 'text-amber-200 font-black';
+              scoreColor = 'text-yellow-300 font-black';
+            } else if (isTop2) {
+              rowBg = 'bg-white/5 text-slate-200 font-semibold';
+              nameColor = 'text-slate-100 font-bold';
+              scoreColor = 'text-slate-200 font-black';
+            } else if (isTop3) {
+              rowBg = 'bg-white/5 text-orange-200 font-semibold';
+              nameColor = 'text-orange-100 font-bold';
+              scoreColor = 'text-orange-200 font-black';
+            }
+
+            const rankUpEffect = isRankUp ? 'ring-1 ring-emerald-400 animate-pulse bg-emerald-500/20' : '';
+            const tooltip = isAnglerTab
+              ? `Đã câu: ${p.totalFish || p.catches || 0} con • Cá nặng nhất: ${(p.heaviestFish || 0).toFixed(2)} kg`
+              : `Đã tặng: ${p.giftCount || 0} quà • ${(p.totalCoins || 0).toLocaleString()} xu`;
+
+            return `<div title="${escapeHtml(tooltip)}" class="flex items-center justify-between px-1.5 py-0.5 rounded-lg ${rowBg} ${rankUpEffect} transition-all">` +
+              `<div class="flex items-center gap-1 truncate mr-1">` +
+              `<span class="text-xs shrink-0">${medal}</span>` +
+              `<span class="truncate text-[10px] ${nameColor} max-w-[65px] sm:max-w-[80px]">${escapeHtml(p.username)}</span>` +
+              `</div>` +
+              `<span class="${scoreColor} text-[10px] shrink-0 font-extrabold">${scoreText}</span>` +
+              `</div>`;
+          }).join('');
+
+          previousRankMap = newRankMap;
+        }
+      }
+
+      let previousRankMap = new Map();
+
+      function renderBoard(list) {
+        currentTopAnglers = list.slice().sort((a, b) => {
+          const diffW = (b.totalWeight || 0) - (a.totalWeight || 0);
+          if (Math.abs(diffW) > 0.0001) return diffW;
+          const diffH = (b.heaviestFish || 0) - (a.heaviestFish || 0);
+          if (Math.abs(diffH) > 0.0001) return diffH;
+          return (a.joinedAt || 0) - (b.joinedAt || 0);
+        }).map((p, i) => ({
+          ...p,
+          rank: i + 1,
+          title: p.title || (i === 0 ? 'Vua Câu Cá' : i === 1 ? 'Bậc Thầy' : i === 2 ? 'Cao Thủ' : 'Thợ Câu')
+        }));
+        renderLeaderboard();
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      const MAX_TOASTS = 3;
+
+      function toast(html, ms = 2600) {
+        const container = document.querySelector('#toasts');
+        if (!container) return;
+
+        while (container.children.length >= MAX_TOASTS) {
+          container.firstElementChild.remove();
+        }
+
+        const box = document.createElement('div');
+        box.className = 'toast glass rounded-xl px-2.5 py-1 text-[11px] sm:text-xs flex items-center gap-2 shadow-lg border border-white/10 max-w-full text-white/90 backdrop-blur-md';
+        box.innerHTML = html;
+        container.appendChild(box);
+
+        setTimeout(() => {
+          if (box.parentNode) {
+            box.style.opacity = '0';
+            box.style.transform = 'translateY(-6px) scale(0.95)';
+            setTimeout(() => box.remove(), 250);
+          }
+        }, ms);
+      }
+
+      function formatFishName(name) {
+        return String(name || 'Cá đồng');
+      }
+
+      function getFishEmoji(weight, name = '') {
+        const n = String(name).toLowerCase();
+        if (n.includes('rồng') || n.includes('long') || n.includes('leviathan')) return '🐉';
+        if (n.includes('kraken') || n.includes('thủy quái') || n.includes('mực') || n.includes('bạch tuộc')) return '🐙';
+        if (n.includes('voi')) return '🐋';
+        if (n.includes('mập') || n.includes('nhám') || n.includes('đuối') || n.includes('cờ') || n.includes('ngừ') || n.includes('biển sâu')) return '🦈';
+        if (n.includes('chình')) return '🐉';
+        if (n.includes('koi') || n.includes('hô') || n.includes('lăng') || n.includes('mú') || n.includes('chiên') || n.includes('bông lau')) return '🐠';
+        return '🐟';
+      }
+
+      function getCatchTierConfig(weight, coins = 0, fishName = '') {
+        const n = String(fishName).toLowerCase();
+
+        // Tier 10: Rồng Thần Tối Thượng (10000+ xu / 350-500kg)
+        if (coins >= 10000 || weight >= 350 || ['rồng thần tối thượng', 'hoàng kim long', 'hư không long', 'thiên long vĩnh hằng'].some(k => n.includes(k))) {
+          return {
+            title: '🌟 THẦN LONG XUẤT THẾ!',
+            rarity: 'Tối Thượng',
+            border: 'border-yellow-400 shadow-[0_0_30px_rgba(255,215,0,0.7)] ring-2 ring-yellow-400/60',
+            bg: 'bg-gradient-to-br from-amber-950/98 via-yellow-950/95 to-black/98',
+            badge: 'bg-gradient-to-r from-amber-400/40 to-yellow-300/40 text-yellow-200 border-amber-300/80 shadow-[0_0_15px_rgba(255,215,0,0.6)] font-black',
+            iconBg: 'radial-gradient(circle, rgba(255,215,0,0.5) 0%, rgba(35,20,5,0.95) 100%)',
+            headerText: 'text-yellow-300 drop-shadow-[0_0_8px_rgba(255,215,0,0.8)]'
+          };
+        }
+
+        // Tier 9: Hải Long Thần & Hắc Hải Xà Leviathan (5000-9999 xu / 200-350kg)
+        if (coins >= 5000 || weight >= 200 || ['hải long thần', 'băng long', 'leviathan', 'long vương biển cả', 'hắc hải xà'].some(k => n.includes(k))) {
+          return {
+            title: '⚡ HẢI LONG THẦN CẤP!',
+            rarity: 'Thần Thoại',
+            border: 'border-violet-400 shadow-[0_0_25px_rgba(168,85,247,0.6)] ring-1 ring-violet-400/50',
+            bg: 'bg-gradient-to-br from-violet-950/98 via-purple-950/95 to-black/98',
+            badge: 'bg-gradient-to-r from-violet-500/40 to-purple-400/40 text-purple-200 border-violet-300/80 shadow-[0_0_12px_rgba(168,85,247,0.5)] font-black',
+            iconBg: 'radial-gradient(circle, rgba(168,85,247,0.45) 0%, rgba(20,10,35,0.95) 100%)',
+            headerText: 'text-violet-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.7)]'
+          };
+        }
+
+        // Tier 8: Thủy Quái Kraken & Vực Sâu (2500-4999 xu / 100-200kg)
+        if (coins >= 2500 || weight >= 100 || ['thủy quái kraken', 'mực khổng lồ ma', 'cá câu biển sâu', 'bạch tuộc hắc ám'].some(k => n.includes(k))) {
+          return {
+            title: '🐙 THỦY QUÁI VỰC SÂU!',
+            rarity: 'Huyền Thoại',
+            border: 'border-pink-400 shadow-[0_0_22px_rgba(236,72,153,0.5)]',
+            bg: 'bg-gradient-to-br from-pink-950/95 via-rose-950/90 to-slate-950/95',
+            badge: 'bg-pink-500/35 text-pink-200 border-pink-400/70 shadow-[0_0_12px_rgba(236,72,153,0.4)] font-bold',
+            iconBg: 'radial-gradient(circle, rgba(236,72,153,0.4) 0%, rgba(30,10,25,0.95) 100%)',
+            headerText: 'text-pink-300 drop-shadow-[0_0_6px_rgba(236,72,153,0.6)]'
+          };
+        }
+
+        // Tier 7: Hung Thần Biển Cả (1000-2499 xu / 50-100kg)
+        if (coins >= 1000 || weight >= 50 || ['cá voi sát thủ', 'cá mập trắng', 'cá đuối manta khổng lồ', 'cá nhám búa'].some(k => n.includes(k))) {
+          return {
+            title: '🦈 HUNG THẦN ĐẠI DƯƠNG!',
+            rarity: 'Siêu Cấp',
+            border: 'border-red-400/90 shadow-[0_0_20px_rgba(239,68,68,0.45)]',
+            bg: 'bg-gradient-to-br from-red-950/95 via-stone-900/95 to-black/95',
+            badge: 'bg-red-500/30 text-rose-200 border-red-400/60 shadow-[0_0_10px_rgba(239,68,68,0.4)] font-bold',
+            iconBg: 'radial-gradient(circle, rgba(239,68,68,0.4) 0%, rgba(25,10,10,0.95) 100%)',
+            headerText: 'text-rose-300 drop-shadow-[0_0_6px_rgba(239,68,68,0.6)]'
+          };
+        }
+
+        // Tier 6: Cực Phẩm Đại Dương (500-999 xu / 25-50kg)
+        if (coins >= 500 || weight >= 25 || ['cá ngừ đại dương', 'cá cờ kiếm', 'cá mú vàng khổng lồ'].some(k => n.includes(k))) {
+          return {
+            title: '👑 CỰC PHẨM ĐẠI DƯƠNG!',
+            rarity: 'Cực Phẩm',
+            border: 'border-amber-400/80 shadow-[0_0_18px_rgba(245,158,11,0.4)]',
+            bg: 'bg-gradient-to-br from-amber-950/95 via-slate-900/95 to-[#0b1c20]/95',
+            badge: 'bg-amber-400/30 text-amber-200 border-amber-400/50 font-bold',
+            iconBg: 'radial-gradient(circle, rgba(245,158,11,0.35) 0%, rgba(10,20,25,0.9) 100%)',
+            headerText: 'text-amber-300'
+          };
+        }
+
+        // Tier 5: Hoàng Gia Nước Ngọt (200-499 xu / 10-25kg)
+        if (coins >= 200 || weight >= 10 || ['cá hô hoàng gia', 'cá chiên sông', 'cá lăng hoàng kim', 'cá bông lau'].some(k => n.includes(k))) {
+          return {
+            title: '⭐ THỦY QUÁI HOÀNG GIA!',
+            rarity: 'Hoàng Gia',
+            border: 'border-yellow-400/70 shadow-[0_0_15px_rgba(234,179,8,0.35)]',
+            bg: 'bg-gradient-to-br from-yellow-950/90 via-slate-900/95 to-[#0f1f1a]/95',
+            badge: 'bg-yellow-500/25 text-yellow-200 border-yellow-400/40 font-bold',
+            iconBg: 'radial-gradient(circle, rgba(234,179,8,0.35) 0%, rgba(15,25,20,0.9) 100%)',
+            headerText: 'text-yellow-300'
+          };
+        }
+
+        // Tier 4: Cá Khổng Lồ (100-199 xu / 5-10kg)
+        if (coins >= 100 || weight >= 5 || ['cá tra khổng lồ', 'cá trê khổng lồ', 'cá chình sông', 'cá basa khổng lồ'].some(k => n.includes(k))) {
+          return {
+            title: '💪 KÉO ĐƯỢC CÁ KHỦNG!',
+            rarity: 'Khổng Lồ',
+            border: 'border-pink-400/60 shadow-[0_0_14px_rgba(244,114,182,0.3)]',
+            bg: 'bg-gradient-to-br from-pink-950/80 via-slate-900/95 to-[#0b1c20]/95',
+            badge: 'bg-pink-500/25 text-pink-200 border-pink-400/40 font-bold',
+            iconBg: 'radial-gradient(circle, rgba(244,114,182,0.3) 0%, rgba(20,15,25,0.9) 100%)',
+            headerText: 'text-pink-300'
+          };
+        }
+
+        // Tier 3: Cá Quý Hiếm (50-99 xu / 3-5kg)
+        if (coins >= 50 || weight >= 3 || ['cá trắm đen', 'cá trắm cỏ', 'cá lóc đồng', 'cá bống tượng'].some(k => n.includes(k))) {
+          return {
+            title: '✨ CÂU ĐƯỢC CÁ HIẾM!',
+            rarity: 'Quý Hiếm',
+            border: 'border-purple-400/60 shadow-[0_0_12px_rgba(167,139,250,0.25)]',
+            bg: 'bg-gradient-to-br from-purple-950/80 via-slate-900/95 to-[#06181f]/95',
+            badge: 'bg-purple-500/25 text-purple-200 border-purple-400/40 font-bold',
+            iconBg: 'radial-gradient(circle, rgba(167,139,250,0.3) 0%, rgba(15,10,25,0.9) 100%)',
+            headerText: 'text-purple-300'
+          };
+        }
+
+        // Tier 2: Cá Quý (10-49 xu / 1-3kg)
+        if (coins >= 10 || weight >= 1 || ['cá chép', 'cá chép koi', 'cá mè', 'cá trôi'].some(k => n.includes(k))) {
+          return {
+            title: '🎏 CÂU ĐƯỢC CÁ QUÝ!',
+            rarity: 'Cá Quý',
+            border: 'border-blue-400/60 shadow-[0_0_10px_rgba(96,165,250,0.25)]',
+            bg: 'bg-gradient-to-br from-blue-950/80 via-slate-900/95 to-[#06181f]/95',
+            badge: 'bg-blue-500/25 text-blue-200 border-blue-400/40 font-medium',
+            iconBg: 'radial-gradient(circle, rgba(96,165,250,0.3) 0%, rgba(10,20,30,0.9) 100%)',
+            headerText: 'text-blue-300'
+          };
+        }
+
+        // Tier 1: Cá Đẹp (1-9 xu / 0.5-1kg)
+        if (coins >= 1 || weight >= 0.5 || ['cá vừa', 'cá diếc', 'cá rô phi', 'cá mè hoa'].some(k => n.includes(k))) {
+          return {
+            title: '🐟 CÂU ĐƯỢC CÁ ĐẸP!',
+            rarity: 'Cá Đẹp',
+            border: 'border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.2)]',
+            bg: 'bg-gradient-to-br from-sky-950/80 via-slate-900/95 to-[#081820]/95',
+            badge: 'bg-sky-500/20 text-sky-200 border-sky-400/30 font-medium',
+            iconBg: 'radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(10,20,30,0.9) 100%)',
+            headerText: 'text-sky-300'
+          };
+        }
+
+        // Tier 0: Phổ Thông (0 xu / 0.1-0.5kg)
+        return {
+          title: '🎣 CÂU ĐƯỢC CÁ!',
+          rarity: 'Phổ Thông',
+          border: 'border-emerald-400/50 shadow-[0_4px_16px_rgba(0,0,0,0.5)]',
+          bg: 'bg-gradient-to-br from-emerald-950/95 via-[#081820]/95 to-[#06141a]/95',
+          badge: 'bg-emerald-400/20 text-emerald-200 border-emerald-400/30',
+          iconBg: 'radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(5,20,25,0.9) 100%)',
+          headerText: 'text-emerald-300'
+        };
+      }
+
+      /* ================= GIỌNG NỮ DỄ THƯƠNG & ÂM BÁO THÔNG BÁO (SWEET FEMALE TTS) ================= */
+      // Mặc định luôn BẬT giọng nữ dễ thương (100% miễn phí, không thu phí, bật lên là có không cần kích hoạt)
+      try { localStorage.removeItem('fishing_voice_enabled'); } catch (_) { }
+      const voiceEnabled = true;
+      let currentVoiceSpeed = 1.28; // Tốc độ giọng đọc tăng nhanh, tươi vui, hoạt bát
+      let vietnameseVoice = null;
+      let audioCtx = null;
+      let audioUnlocked = false;
+      let pendingAudioPlayback = null;
+      const masterAudio = document.querySelector('#masterTtsAudio') || new Audio();
+      masterAudio.preload = 'auto';
+      let speechSafetyTimer = null;
+
+      function unlockAllAudio() {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext && !audioCtx) {
+            audioCtx = new AudioContext();
+          }
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          if (!audioUnlocked) {
+            // Silent 0.05s buffer to unlock HTMLMediaElement in Chromium/Cốc Cốc
+            masterAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+            const p = masterAudio.play();
+            if (p && typeof p.then === 'function') {
+              p.then(() => {
+                masterAudio.pause();
+                audioUnlocked = true;
+                if (pendingAudioPlayback) {
+                  const playFn = pendingAudioPlayback;
+                  pendingAudioPlayback = null;
+                  playFn();
+                }
+              }).catch(() => { });
+            }
+          } else if (pendingAudioPlayback) {
+            const playFn = pendingAudioPlayback;
+            pendingAudioPlayback = null;
+            playFn();
+          }
+        } catch (_) { }
+      }
+
+      ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(evt => {
+        window.addEventListener(evt, unlockAllAudio, { passive: true });
+      });
+
+      function pickCuteFemaleVoice(voices) {
+        if (!voices || !voices.length) return null;
+
+        // 1. Tìm các giọng tiếng Việt (lang: vi, vi-VN, vi_VN)
+        const viVoices = voices.filter(v => {
+          const lang = (v.lang || '').toLowerCase();
+          const name = (v.name || '').toLowerCase();
+          return lang.startsWith('vi') || name.includes('vietnam') || name.includes('tiếng việt');
+        });
+
+        if (viVoices.length > 0) {
+          // Ưu tiên cao nhất: Giọng nữ ngọt ngào Hoài My (Microsoft HoaiMy Online/Natural) hoặc Google Tiếng Việt (Nữ)
+          const sweetFemaleVi = viVoices.find(v => {
+            const name = (v.name || '').toLowerCase();
+            return name.includes('hoaimy') || name.includes('hoài my') || name.includes('female')
+              || name.includes('google tiếng việt') || name.includes('linh') || name.includes('mai') || name.includes('nữ');
+          });
+          if (sweetFemaleVi) return sweetFemaleVi;
+
+          // Ưu tiên thứ 2: Giọng tiếng Việt không phải giọng nam (loại trừ NamMinh, male, Microsoft An nam)
+          const nonMaleVi = viVoices.find(v => {
+            const name = (v.name || '').toLowerCase();
+            const isMale = name.includes('namminh') || name.includes('nam minh') || name.includes('male')
+              || name.includes('david') || name.includes('microsoft an') || name.includes(' an ') || name.endsWith(' an');
+            return !isMale;
+          });
+          if (nonMaleVi) return nonMaleVi;
+
+          // Không chọn giọng nam để tránh bị thô
+          return null;
+        }
+
+        // 2. Dự phòng: Giọng nữ quốc tế tự nhiên (Jenny, Zira, Samantha...)
+        const femaleIntl = voices.find(v => {
+          const name = (v.name || '').toLowerCase();
+          return name.includes('jenny') || name.includes('zira') || name.includes('samantha') || name.includes('female');
+        });
+        return femaleIntl || null;
+      }
+
+      function updateVoiceList() {
+        if (!('speechSynthesis' in window)) return;
+        try {
+          const list = window.speechSynthesis.getVoices() || [];
+          vietnameseVoice = pickCuteFemaleVoice(list);
+        } catch (_) { }
+      }
+
+      if ('speechSynthesis' in window) {
+        updateVoiceList();
+        window.speechSynthesis.onvoiceschanged = updateVoiceList;
+      }
+
+      function playCatchChime(isHighRarity = false) {
+        if (!voiceEnabled) return;
+        try {
+          unlockAllAudio();
+          if (!audioCtx) return;
+          const now = audioCtx.currentTime;
+          const osc1 = audioCtx.createOscillator();
+          const osc2 = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          // Chuông ngân vang trong trẻo, đáng yêu (Sparkly high chime)
+          const baseFreq = isHighRarity ? 659.25 : 587.33; // E5 hoặc D5
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(baseFreq, now);
+          osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.6, now + 0.12);
+
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(baseFreq * 1.33, now);
+          osc2.frequency.exponentialRampToValueAtTime(baseFreq * 2.2, now + 0.18);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.12, now + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc1.start(now);
+          osc2.start(now);
+          osc1.stop(now + 0.36);
+          osc2.stop(now + 0.36);
+        } catch (_) { }
+      }
+
+      function formatWeightForSpeech(weightVal) {
+        if (!weightVal || weightVal <= 0) return '0 ki-lô-gam';
+        const str = weightVal.toFixed(2);
+        const [intPart, decPart] = str.split('.');
+        if (!decPart || decPart === '00') {
+          return `${intPart} ki-lô-gam`;
+        }
+        const cleanDec = decPart.endsWith('0') ? decPart[0] : decPart;
+        return `${intPart} phẩy ${cleanDec} ki-lô-gam`;
+      }
+
+      const speechQueue = [];
+      let isSpeaking = false;
+
+      function speakViaServerTts(text, onDone, onError) {
+        if (!text) {
+          if (onDone) onDone();
+          return;
+        }
+
+        try {
+          unlockAllAudio();
+
+          try {
+            masterAudio.pause();
+            masterAudio.currentTime = 0;
+          } catch (_) { }
+
+          masterAudio.src = '/api/tts?text=' + encodeURIComponent(text);
+          masterAudio.playbackRate = currentVoiceSpeed || 1.28; // Tốc độ nhanh dứt khoát
+          let finished = false;
+
+          const finish = (isSuccess = true) => {
+            if (finished) return;
+            finished = true;
+            masterAudio.onended = null;
+            masterAudio.onerror = null;
+            if (isSuccess && onDone) onDone();
+            if (!isSuccess && onError) onError();
+          };
+
+          masterAudio.onended = () => finish(true);
+          masterAudio.onerror = (e) => {
+            console.warn('[TTS Audio Error]', e);
+            finish(false);
+          };
+
+          const p = masterAudio.play();
+          if (p && typeof p.catch === 'function') {
+            p.catch(err => {
+              console.warn('[TTS Play Catch]', err.name, err.message);
+              if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+                audioUnlocked = false;
+                pendingAudioPlayback = () => {
+                  try {
+                    masterAudio.play().then(() => finish(true)).catch(() => finish(false));
+                  } catch (_) { finish(false); }
+                };
+                return;
+              }
+              finish(false);
+            });
+          }
+        } catch (err) {
+          console.error('[TTS Exception]', err);
+          if (onError) onError(err);
+        }
+      }
+
+      function fallbackSpeechSynthesis(text, onFinished) {
+        if (!('speechSynthesis' in window)) {
+          if (onFinished) onFinished();
+          return;
+        }
+        try {
+          if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+          }
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = 'vi-VN';
+          if (vietnameseVoice) utter.voice = vietnameseVoice;
+          utter.rate = currentVoiceSpeed || 1.28;
+          utter.pitch = 1.30;
+          utter.volume = 1.0;
+
+          let done = false;
+          const finishOnce = () => {
+            if (done) return;
+            done = true;
+            if (onFinished) onFinished();
+          };
+
+          utter.onstart = () => { };
+          utter.onend = finishOnce;
+          utter.onerror = finishOnce;
+          window.speechSynthesis.speak(utter);
+          // Safety timeout for speechSynthesis Chromium bug
+          setTimeout(finishOnce, 6000);
+        } catch (_) {
+          if (onFinished) onFinished();
+        }
+      }
+
+      /* ================= SYNCHRONIZED CATCH PRESENTATION & VOICE SYSTEM ================= */
+      const catchPresentationQueue = [];
+      let isPresentingCatch = false;
+      let currentPresentingPlayerId = null;
+      let presentationWatchdogTimer = null;
+      let catchBoardDismissTimer = null;
+      let bitePhaseTimer = null;
+
+      function buildCatchSentence(e) {
+        const username = e.username || 'Cần thủ';
+        const rawFishName = e.fish?.name || 'Cá đồng';
+        const fishName = formatFishName(rawFishName);
+        const weightVal = Number(e.fish?.weight || 0);
+        const isLucky = Boolean(e.fish?.isLuckyBonus);
+        const tierJump = Number(e.fish?.tierJump || 0);
+        const coins = Number(e.coins || 0);
+        const n = String(rawFishName).toLowerCase();
+
+        // 1. May mắn nổ cá vượt cấp
+        if (isLucky && tierJump >= 2) {
+          return `Oa đại may mắn! Cần thủ ${username} nổ được một bé ${fishName} nha!`;
+        }
+        if (isLucky && tierJump === 1) {
+          return `Woa may mắn quá! Cần thủ ${username} giật trúng một bé ${fishName} nè!`;
+        }
+
+        // 2. Nhóm Rồng Thần Tối Thượng (Tier 10: 10000+ xu / 350-500kg)
+        if (coins >= 10000 || weightVal >= 350 || ['rồng thần tối thượng', 'hoàng kim long', 'hư không long', 'thiên long vĩnh hằng'].some(k => n.includes(k))) {
+          return `Trời đất ơi! Thần Long xuất thế! Chúc mừng cần thủ ${username} thu phục được ${fishName}! Đỉnh nóc kịch trần luôn nha!`;
+        }
+
+        // 3. Nhóm Hải Long Thần & Leviathan (Tier 9: 5000-9999 xu / 200-350kg)
+        if (coins >= 5000 || weightVal >= 200 || ['hải long thần', 'băng long', 'leviathan', 'long vương biển cả', 'hắc hải xà'].some(k => n.includes(k))) {
+          return `Oa chấn động đại dương! Cần thủ ${username} vừa săn được đại thần thú ${fishName} nè!`;
+        }
+
+        // 4. Nhóm Thủy Quái Kraken & Vực Sâu (Tier 8: 2500-4999 xu / 100-200kg)
+        if (coins >= 2500 || weightVal >= 100 || ['thủy quái kraken', 'mực khổng lồ ma', 'cá câu biển sâu', 'bạch tuộc hắc ám'].some(k => n.includes(k))) {
+          return `Kinh ngạc chưa kìa! Cần thủ ${username} vừa kéo tung nóc thủy quái ${fishName} từ biển sâu!`;
+        }
+
+        // 5. Nhóm Hung Thần Đại Dương (Tier 7: 1000-2499 xu / 50-100kg)
+        if (coins >= 1000 || weightVal >= 50 || ['cá voi sát thủ', 'cá mập trắng', 'cá đuối manta khổng lồ', 'cá nhám búa'].some(k => n.includes(k))) {
+          return `Đẳng cấp thật sự! Chúc mừng ${username} đã tóm gọn hung thần ${fishName} rồi nha!`;
+        }
+
+        // 6. Nhóm Cực Phẩm Đại Dương (Tier 6: 500-999 xu / 25-50kg)
+        if (coins >= 500 || weightVal >= 25 || ['cá ngừ đại dương', 'cá cờ kiếm', 'cá mú vàng khổng lồ'].some(k => n.includes(k))) {
+          return `Tuyệt vời quá đi! Chúc mừng ${username} giật trúng cực phẩm ${fishName} nha!`;
+        }
+
+        // 7. Nhóm Thủy Quái Sông & Cá Khủng (Tier 5 & 4: 100-499 xu / 5-25kg)
+        if (coins >= 100 || weightVal >= 5 || ['cá hô hoàng gia', 'cá chiên sông', 'cá lăng hoàng kim', 'cá bông lau', 'cá tra khổng lồ', 'cá trê khổng lồ', 'cá chình sông', 'cá basa khổng lồ'].some(k => n.includes(k))) {
+          return `Trời ơi đỉnh chóp! Chúc mừng cần thủ ${username} kéo được ${fishName} siêu khủng nè!`;
+        }
+
+        // 8. Nhóm Cá Quý & Cá Hiếm (Tier 3 & 2: 10-99 xu / 1-5kg)
+        if (coins >= 10 || weightVal >= 1 || ['cá trắm đen', 'cá trắm cỏ', 'cá lóc đồng', 'cá bống tượng', 'cá chép', 'cá chép koi', 'cá mè', 'cá trôi'].some(k => n.includes(k))) {
+          return `Xuất sắc quá! Chúc mừng ${username} câu dính ${fishName} nha!`;
+        }
+
+        // 9. Cá nhỏ / phổ thông
+        return `Chúc mừng ${username} câu được một bé ${fishName} nha!`;
+      }
+
+      function getCatchPriority(e) {
+        const weightVal = Number(e.fish?.weight || 0);
+        const coins = Number(e.coins || 0);
+        const isLucky = Boolean(e.fish?.isLuckyBonus);
+        const tierJump = Number(e.fish?.tierJump || 0);
+        const rawFishName = String(e.fish?.name || '').toLowerCase();
+        if (coins >= 5000 || weightVal >= 200 || (isLucky && tierJump >= 2) || rawFishName.includes('long') || rawFishName.includes('rồng') || rawFishName.includes('leviathan')) return 5;
+        if (coins >= 1000 || weightVal >= 50 || rawFishName.includes('kraken') || rawFishName.includes('mập') || rawFishName.includes('voi')) return 4;
+        if (coins >= 100 || weightVal >= 5 || (isLucky && tierJump >= 1)) return 3;
+        // Bất kỳ quà tặng nào (coins >= 1: Hoa hồng 1 xu, Tim 1 xu...) HOẶC cá to đều có priority >= 2 (ưu tiên cao hơn câu thường 0 xu)
+        if (coins >= 1 || weightVal >= 1) return 2;
+        return 1;
+      }
+
+      function renderCatchBoardHtml(e) {
+        const container = document.querySelector('#catchBoardAlert');
+        if (!container) return;
+
+        const weightVal = Number(e.fish?.weight || 0);
+        const weightText = weightVal > 0 ? weightVal.toFixed(2) : '0.00';
+        const rawFishName = e.fish?.name || 'Cá đồng';
+        const fishName = formatFishName(rawFishName);
+        const coins = Number(e.coins || 0);
+        const emoji = getFishEmoji(weightVal, rawFishName);
+        const cfg = getCatchTierConfig(weightVal, coins, rawFishName);
+        const username = e.username || 'Cần thủ';
+        const isLucky = Boolean(e.fish?.isLuckyBonus);
+        const tierJump = Number(e.fish?.tierJump || 0);
+
+        let cardTitle = cfg.title;
+        let badgeText = cfg.rarity;
+        let badgeStyle = cfg.badge;
+
+        if (isLucky) {
+          if (tierJump >= 2) {
+            cardTitle = '🔥 ĐẠI MAY MẮN: NỔ CÁ +2 BẬC!';
+            badgeText = '🔥 Nổ Cá +2 Cấp';
+            badgeStyle = 'bg-amber-400/40 text-yellow-200 border-amber-300 animate-pulse font-black';
+          } else {
+            cardTitle = '✨ MAY MẮN: NỔ CÁ LỚN (+1 BẬC)!';
+            badgeText = '✨ Nổ Cá +1 Cấp';
+            badgeStyle = 'bg-emerald-400/35 text-emerald-100 border-emerald-300 font-bold';
+          }
+        }
+
+        const fishImgUrl = `/assets/Fish/thumb/${encodeURIComponent(fishName)}.png?v=1`;
+        const fishImgRawUrl = `/assets/Fish/${encodeURIComponent(fishName)}.png?v=1`;
+
+        container.innerHTML = `
+          <div class="catch-board-animate-in glass rounded-2xl p-2.5 sm:p-3 border ${cfg.border} ${cfg.bg} shadow-2xl backdrop-blur-md text-white select-none relative overflow-hidden w-full">
+            <div class="absolute inset-0 glow-shimmer pointer-events-none"></div>
+
+            <div class="flex items-center justify-between pb-1 mb-1.5 border-b border-white/10 text-[9px] relative z-10">
+              <div class="flex items-center gap-1.5 font-black ${cfg.headerText} uppercase tracking-wider text-[10px]">
+                <span>${cardTitle}</span>
+              </div>
+              <span class="px-2 py-0.5 rounded-full font-bold text-[8.5px] border ${badgeStyle}">
+                ${badgeText}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2.5 relative z-10">
+              <!-- Fish Image Card with Glowing Frame & Fallback Emoji -->
+              <div class="relative w-14 h-11 sm:w-16 sm:h-12 rounded-xl flex items-center justify-center shrink-0 border border-white/20 shadow-md overflow-hidden bg-black/50" style="background: ${cfg.iconBg}">
+                <img src="${fishImgUrl}"
+                     alt="${escapeHtml(fishName)}"
+                     class="w-full h-full object-cover transition-transform duration-300 transform hover:scale-110"
+                     onerror="if (!this.dataset.triedRaw) { this.dataset.triedRaw = '1'; this.src='${fishImgRawUrl}'; } else { this.style.display='none'; this.nextElementSibling.style.display='flex'; }">
+                <div class="hidden w-full h-full items-center justify-center">
+                  <span class="text-2xl sm:text-3xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] animate-pulse">${emoji}</span>
+                </div>
+                <span class="absolute -bottom-1 -right-1 text-[9px] filter drop-shadow">✨</span>
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <div class="text-[10px] text-white/70 font-medium truncate flex items-center gap-1">
+                  <span>Cần thủ:</span>
+                  <b class="text-emerald-300 font-bold truncate">${escapeHtml(username)}</b>
+                </div>
+
+                <div class="text-[12px] sm:text-[13px] font-black text-white truncate leading-tight mt-0.5">
+                  ${escapeHtml(fishName)}
+                </div>
+
+                <div class="flex items-center gap-1.5 mt-1">
+                  <span class="text-[9px] text-white/60">Trọng lượng:</span>
+                  <span class="px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500/35 to-yellow-500/25 border border-amber-400/60 text-amber-300 font-black text-[12px] sm:text-[13px] leading-none shadow-sm flex items-center gap-1">
+                    <span>⚖️</span>
+                    <span>${weightText} kg</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function dismissCatchBoard(callback) {
+        const container = document.querySelector('#catchBoardAlert');
+        if (!container) {
+          if (callback) callback();
+          return;
+        }
+        const card = container.firstElementChild;
+        if (card) {
+          card.classList.remove('catch-board-animate-in');
+          card.classList.add('catch-board-animate-out');
+          setTimeout(() => {
+            if (container.contains(card)) card.remove();
+            if (callback) callback();
+          }, 240);
+        } else {
+          if (callback) callback();
+        }
+      }
+
+      function presentCatchItem(item) {
+        if (!item || !item.e) return;
+        isPresentingCatch = true;
+        clearTimeout(presentationWatchdogTimer);
+        clearTimeout(catchBoardDismissTimer);
+
+        const e = item.e;
+        const sentence = item.sentence;
+        const weightVal = Number(e.fish?.weight || 0);
+        const coins = Number(e.coins || 0);
+        const isLucky = Boolean(e.fish?.isLuckyBonus);
+        const playerId = e.playerId || resolvePlayer(e);
+        currentPresentingPlayerId = playerId;
+
+        // 1. Zoom máy quay cận cảnh người câu cá này
+        if (playerId) {
+          const tier = e.tier || getGiftTier(coins);
+          startZoom({
+            playerId,
+            username: e.username || 'Cần thủ',
+            coins,
+            tier,
+            giftName: e.giftName,
+            addedAt: performance.now()
+          }, performance.now());
+        }
+
+        // 2. KHI CHUYỂN CẢNH QUA CẦN THỦ NÀY THÌ MỚI BẮT ĐẦU GIẬT CẦN!
+        triggerCatchAnimation(e, coins, e.tier);
+
+        // 3. Render bảng thông báo lên màn hình ngay lập tức!
+        renderCatchBoardHtml(e);
+
+        // 4. Phát tiếng chuông vui tai
+        playCatchChime(isLucky || coins >= 100 || weightVal >= 10);
+
+        // Watchdog phòng ngừa lỗi treo (tối đa 5.5s)
+        presentationWatchdogTimer = setTimeout(() => {
+          finishCurrentPresentation();
+        }, 5500);
+
+        const onDoneSpeaking = () => {
+          clearTimeout(presentationWatchdogTimer);
+          // Giữ bảng thêm 350ms sau khi đọc xong câu thoại rồi mới chuyển cảnh sang người tiếp theo
+          catchBoardDismissTimer = setTimeout(() => {
+            finishCurrentPresentation();
+          }, 350);
+        };
+
+        // 5. Đọc giọng nữ đồng bộ 100% với bảng vừa hiện
+        if (voiceEnabled) {
+          speakViaServerTts(sentence, onDoneSpeaking, () => {
+            // Nếu server TTS lỗi: fallback sang Web Speech
+            fallbackSpeechSynthesis(sentence, onDoneSpeaking);
+          });
+        } else {
+          // Nếu tắt giọng: chỉ giữ bảng 2.2s rồi chuyển
+          catchBoardDismissTimer = setTimeout(() => {
+            finishCurrentPresentation();
+          }, 2200);
+        }
+      }
+
+      function presentCatchItemWithBite(item) {
+        if (!item || !item.e) return;
+        const e = item.e;
+        const pid = e.playerId || resolvePlayer(e);
+        const coins = Number(e.coins || 0);
+        const tier = e.tier || getGiftTier(coins);
+
+        isPresentingCatch = true;
+        currentPresentingPlayerId = pid;
+        clearTimeout(presentationWatchdogTimer);
+        clearTimeout(catchBoardDismissTimer);
+        clearTimeout(bitePhaseTimer);
+
+        // 1. Zoom camera cận cảnh vào cần thủ này
+        if (pid) {
+          startZoom({
+            playerId: pid,
+            username: e.username || 'Cần thủ',
+            coins,
+            tier,
+            giftName: e.giftName,
+            addedAt: performance.now()
+          }, performance.now());
+
+          // 2. KHI CHUYỂN CẢNH QUA THÌ MỚI BẮT ĐẦU BƯỚC CẮN (BITE)!
+          approachingCatches.set(pid, {
+            ...e,
+            coins,
+            tier,
+            start: performance.now()
+          });
+
+          // Hiệu ứng phao giật nhấp nhô & gợn sóng nước xôn xao
+          const L = lay[pid];
+          if (L) {
+            addRipple(L.bx, L.bobY || L.by, 26, 900);
+            splash(L.bx, L.bobY || L.by, 10);
+          }
+        }
+
+        // 3. Sau 1 nhịp cắn câu kịch tính (~1000ms), cần thủ MỚI BẮT ĐẦU GIẬT CẦN LÊN!
+        bitePhaseTimer = setTimeout(() => {
+          presentCatchItem(item);
+        }, 1000);
+      }
+
+      function finishCurrentPresentation() {
+        clearTimeout(presentationWatchdogTimer);
+        clearTimeout(catchBoardDismissTimer);
+        clearTimeout(bitePhaseTimer);
+
+        dismissCatchBoard(() => {
+          isPresentingCatch = false;
+          currentPresentingPlayerId = null;
+
+          if (catchPresentationQueue.length > 0) {
+            // Lấy thông báo của người tiếp theo
+            const nextItem = catchPresentationQueue.shift();
+            const nextPid = nextItem.e.playerId || resolvePlayer(nextItem.e);
+
+            // Chuyển cảnh camera sang người tiếp theo trước!
+            if (nextPid) {
+              const tier = nextItem.e.tier || getGiftTier(nextItem.e.coins);
+              startZoom({
+                playerId: nextPid,
+                username: nextItem.e.username || 'Cần thủ',
+                coins: nextItem.e.coins || 0,
+                tier: tier,
+                giftName: nextItem.e.giftName,
+                addedAt: performance.now()
+              }, performance.now());
+
+              const zIdx = zoomQueue.findIndex(q => q.playerId === nextPid);
+              if (zIdx !== -1) zoomQueue.splice(zIdx, 1);
+            }
+
+            // Chờ camera lướt sang vị trí người mới (~320ms)
+            // KHI ĐÃ CHUYỂN CẢNH QUA CẦN THỦ NÀY THÌ MỚI BẮT ĐẦU BƯỚC CẮN (BITE)!
+            setTimeout(() => {
+              presentCatchItemWithBite(nextItem);
+            }, 320);
+          } else {
+            // Đã đọc xong tất cả: giải phóng camera theo nhịp tự nhiên
+            lastZoomEndTime = performance.now();
+          }
+        });
+      }
+
+      function processNextCatchPresentation() {
+        if (isPresentingCatch) return;
+        if (catchPresentationQueue.length === 0) return;
+
+        // Lấy thông báo tiếp theo
+        const nextItem = catchPresentationQueue.shift();
+        presentCatchItemWithBite(nextItem);
+      }
+
+      function showCatchBoard(e) {
+        if (!e || !e.fish) return;
+
+        const priority = getCatchPriority(e);
+        const sentence = buildCatchSentence(e);
+        const item = { e, sentence, priority, time: Date.now() };
+
+        // Nếu đang trình diễn / đang đọc thông báo cho một người:
+        // PHẢI đọc xong thông báo người này mới chuyển cảnh và đọc người khác!
+        if (isPresentingCatch) {
+          // Xếp người tiếp theo vào hàng chờ catchPresentationQueue
+          if (priority > 1 || item.e.coins > 0) {
+            // Bất kỳ quà tặng nào (coins > 0) luôn được ưu tiên xếp TRƯỚC mọi lượt câu miễn phí (0 xu)!
+            const insertIdx = catchPresentationQueue.findIndex(q => {
+              if (item.priority > q.priority) return true;
+              if ((item.e.coins || 0) > 0 && (q.e?.coins || 0) === 0) return true;
+              return false;
+            });
+            if (insertIdx !== -1) {
+              catchPresentationQueue.splice(insertIdx, 0, item);
+            } else {
+              catchPresentationQueue.push(item);
+            }
+          } else {
+            catchPresentationQueue.push(item);
+          }
+
+          // Giữ hàng đợi tối đa 6 người để không bị dồn ứ quá lâu, ưu tiên giữ lại các lượt tặng quà
+          if (catchPresentationQueue.length > 6) {
+            const dropIdx = catchPresentationQueue.findIndex(q => (q.e?.coins || 0) === 0);
+            if (dropIdx !== -1) {
+              catchPresentationQueue.splice(dropIdx, 1);
+            } else {
+              catchPresentationQueue.shift();
+            }
+          }
+          return;
+        }
+
+        // Nếu đang rảnh rỗi:
+        const pid = e.playerId || resolvePlayer(e);
+        if (pid && approachingCatches.has(pid)) {
+          // Người này đã đang ở bước cắn câu trên màn hình: Giật cần ngay
+          presentCatchItem(item);
+        } else {
+          // Chưa có bước cắn câu: Bắt đầu bước Cắn (Bite) trước rồi mới giật cần!
+          presentCatchItemWithBite(item);
+        }
+      }
+
+
+
+      window.testCatchBoard = (name, weight, user, coins, isLuckyBonus, tierJump) => {
+        showCatchBoard({ fish: { name, weight, isLuckyBonus, tierJump }, username: user, coins });
+      };
+      window.speakTest = (text) => {
+        unlockAllAudio();
+        const sentence = text || 'Oa, chúc mừng cần thủ câu được một bé cá to khổng lồ luôn nha!';
+        speakViaServerTts(sentence);
+      };
+
+      // Thông báo câu được cá đã có Bảng Thông Báo (Catch Board Alert) ở trên nên loại bỏ toast trùng lặp ở góc dưới
+      const notifyCatch = () => {};
+
+      function notifyLargeGift(e, isCatch = false) {
+        const container = document.querySelector('#vipGiftAlert');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const box = document.createElement('div');
+        box.className = 'glass rounded-full px-2.5 py-1 text-[11px] sm:text-xs flex items-center gap-1.5 shadow-2xl border border-amber-400/70 bg-gradient-to-r from-amber-950/95 via-yellow-950/90 to-amber-950/95 text-amber-200 transition-all duration-300 transform scale-95 opacity-0 max-w-full';
+        box.innerHTML = '<span class="text-sm crown-glow shrink-0">👑</span>' +
+          '<div class="flex items-center gap-1 min-w-0 truncate text-[10px] sm:text-[11px]">' +
+          '<span class="font-black text-amber-300 truncate max-w-[65px] sm:max-w-[85px]">' + escapeHtml(e.username) + '</span>' +
+          '<span class="text-amber-100/80 font-medium shrink-0">' + (isCatch ? 'kéo' : 'tặng') + '</span>' +
+          '<span class="font-bold text-yellow-300 truncate max-w-[65px] sm:max-w-[90px]">' + escapeHtml(e.giftName || 'Cực phẩm') + '</span>' +
+          '<span class="bg-amber-400/25 text-yellow-300 px-1 py-0.2 rounded-full text-[9px] font-black border border-amber-400/40 shrink-0">' + (e.coins || 100) + ' xu</span>' +
+          '</div>';
+
+        container.appendChild(box);
+        requestAnimationFrame(() => {
+          box.classList.remove('scale-95', 'opacity-0');
+          box.classList.add('scale-100', 'opacity-100');
+        });
+
+        setTimeout(() => {
+          if (box.parentNode) {
+            box.classList.remove('scale-100', 'opacity-100');
+            box.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => box.remove(), 250);
+          }
+        }, 3500);
+      }
+
+      const notifyJoin = p => toast('<span class="text-sm">🎣</span><div class="truncate"><span class="font-bold text-emerald-300">' + escapeHtml(p.username) + '</span> vào bờ</div>', 2200);
+
+      const notifyApproach = e => {
+        if (e.coins > 0) {
+          toast('<span class="text-sm">🎁</span><div class="truncate"><span class="font-bold text-amber-300">' + escapeHtml(e.username) + '</span> tặng <span class="font-semibold text-white">' + escapeHtml(e.giftName || 'Quà') + '</span> <span class="text-yellow-400 text-[10px]">(' + e.coins + ' xu)</span></div>', 2600);
+        }
+      };
+
+      function focusAngler(e) {
+        if (!e) return;
+        const pid = ensure(e);
+        if (!pid) return;
+        requestZoom({ playerId: pid, username: e.username }, 100);
+      }
+
+      function ensure(e) {
+        if (!e) return null;
+        let pid = e.playerId || resolvePlayer(e);
+        if (!pid && e.username) {
+          const found = players.find(p => p.username === e.username);
+          if (found) pid = found.id;
+        }
+        if (!pid) {
+          pid = 'p_' + Math.abs(hash(e.username || 'user_' + Date.now()));
+        }
+        e.playerId = pid;
+        if (!players.some(p => p.id === pid)) {
+          addScenePlayer({ id: pid, username: e.username || 'Cần thủ', avatar: e.avatar, score: 0, joinedAt: Date.now() });
+        }
+        return pid;
+      }
+
+      /* ================= SOCKET EVENTS ================= */
+      socket.on('state:init', s => {
+        players = s.players || [];
+        if (s.leaderboard) renderBoard(s.leaderboard);
+        initializeScenePlayers(players);
+        setStatus(s.connected, s.connected ? 'Đang LIVE • TikTok' : 'Chế độ xem trước');
+      });
+
+      socket.on('player:like-boost', data => {
+        toast('<span class="text-sm">💖</span><div class="truncate"><span class="font-bold text-pink-300">' + escapeHtml(data.username) + '</span> thả tim <span class="text-emerald-300 font-bold">(-' + data.reducedSec + 's)</span> • Hồi chiêu còn <b class="text-white">' + data.currentCooldownSec + 's</b></div>', 2400);
+      });
+
+      socket.on('player:cooldown', data => {
+        if (data && data.isNewJoin) {
+          toast('<span class="text-sm">⏳</span><div class="truncate"><span class="font-bold text-emerald-300">' + escapeHtml(data.username) + '</span> vào bờ câu! Chờ hồi chiêu <b class="text-amber-300">' + data.remainingSec + 's</b> (thả tim để giảm)!</div>', 2600);
+        } else {
+          toast('<span class="text-sm">⏳</span><div class="truncate">Đang hồi chiêu, chờ <b class="text-amber-300">' + (data.remainingSec || 60) + 's</b> nữa hoặc thả tim để giảm!</div>', 2000);
+        }
+      });
+
+      socket.on('tiktok:status', s => {
+        setStatus(s.connected, s.connected ? 'Đang LIVE • TikTok' : 'Mất kết nối TikTok');
+        if (s.streamEnd) {
+          clearAll();
+        }
+      });
+      socket.on('player:join', p => { if (addScenePlayer(p)) notifyJoin(p); });
+      socket.on('player:leave', data => { if (data && data.playerId) startPlayerLeave(data.playerId); });
+      socket.on('player:update', p => {
+        const existing = players.find(x => x.id === p.id);
+        if (existing) {
+          existing.characterId = p.characterId;
+          existing.username = p.username;
+          preloadCharacter(existing);
+        }
+      });
+
+      socket.on('leaderboard', list => {
+        renderBoard(list);
+      });
+
+      socket.on('leaderboard:data', data => {
+        if (!data) return;
+        if (data.topAnglers) currentTopAnglers = data.topAnglers;
+        if (data.topDonors) currentTopDonors = data.topDonors;
+        renderLeaderboard();
+      });
+
+      socket.on('stream:stats', stats => {
+        updateStreamStats(stats);
+      });
+
+      socket.on('fishing:queue-status', ({ waitingCount = 0, queue = [] } = {}) => {
+        const qBanner = document.querySelector('#spotlightQueueBanner');
+        if (!qBanner) return;
+        if (waitingCount > 0) {
+          const largeCount = queue.filter(q => (q.coins || 0) >= GIFT_TIER_LARGE).length;
+          if (largeCount > 0) {
+            qBanner.innerHTML = '<span class="crown-glow shrink-0">👑</span><span class="truncate">Quà lớn chờ: <b class="text-amber-300 font-black">' + largeCount + '</b> <span class="text-amber-200/70 text-[9px]">(' + waitingCount + ' đợi)</span></span>';
+          } else {
+            qBanner.innerHTML = '<span class="shrink-0">⏳</span><span class="truncate">Chờ câu: <b class="text-amber-300 font-black">' + waitingCount + '</b> người</span>';
+          }
+          qBanner.classList.remove('hidden');
+        } else {
+          qBanner.classList.add('hidden');
+        }
+      });
+
+      socket.on('fishing:approach', e => {
+        const pid = ensure(e);
+        if (!pid) return;
+        e.playerId = pid;
+        const coins = getEventCoins(e);
+        const tier = getGiftTier(coins);
+
+        // Luôn ưu tiên xếp camera zoom trước cho người tặng quà
+        if (coins > 0) {
+          requestZoom(e, coins);
+        }
+
+        // Nếu đang có thông báo khác được chiếu trên màn hình:
+        // Đừng kích hoạt cắn câu ở người này ngoài khung hình,
+        // để khi chuyển cảnh qua người này thì mới bắt đầu bước Cắn (Bite)!
+        if (isPresentingCatch) {
+          return;
+        }
+
+        approachingCatches.set(pid, { ...e, coins, tier, start: performance.now() });
+        approachingCatch = e;
+
+        if (coins === 0) {
+          requestZoom(e, coins);
+        }
+
+        if (tier === 'large') {
+          notifyLargeGift(e, false);
+        } else {
+          notifyApproach(e);
+        }
+      });
+
+      function triggerCatchAnimation(e, finalCoins, tier) {
+        if (!e) return;
+        const pid = e.playerId || resolvePlayer(e);
+        if (!pid) return;
+        const safeCoins = Number.isFinite(finalCoins) ? finalCoins : (e.coins || getEventCoins(e));
+        const safeTier = tier || e.tier || getGiftTier(safeCoins);
+
+        approachingCatches.delete(pid);
+        activeCatches.set(pid, {
+          ...e,
+          playerId: pid,
+          coins: safeCoins,
+          tier: safeTier,
+          start: performance.now(),
+          color: e.fish?.color || '#ffd166'
+        });
+        activeCatch = e;
+      }
+
+      socket.on('fishing:catch', e => {
+        const pid = ensure(e);
+        if (!pid) return;
+        e.playerId = pid;
+        const ap = approachingCatches.get(pid);
+        const coinsApproach = ap ? (ap.coins || getEventCoins(ap)) : 0;
+        const coinsCatch = getEventCoins(e);
+        const finalCoins = Math.max(coinsApproach, coinsCatch);
+        const tier = getGiftTier(finalCoins);
+
+        e.coins = finalCoins;
+        e.tier = tier;
+
+        // Bảng thông báo và hoạt ảnh cắn câu/giật cần sẽ được kích hoạt tuần tự:
+        // - Nếu chưa có ai: bắt đầu cắn câu rồi giật cần
+        // - Nếu đang có người: camera chuyển cảnh sang người này xong thì MỚI BẮT ĐẦU BƯỚC CẮN (BITE)!
+        showCatchBoard(e);
+      });
+
+      socket.on('fishing:miss', e => {
+        let playerId = resolvePlayer(e);
+        if (playerId) {
+          approachingCatches.delete(playerId);
+          const L = lay[playerId];
+          if (L) { splash(L.bx, L.bobY || L.by, 12); addRipple(L.bx, L.by, 50, 1400); }
+          outcomePoses.set(playerId, { pose: 'miss', until: performance.now() + 1600 });
+        }
+      });
+
+      const clearAll = () => {
+        players = [];
+        leaderboard = [];
+        currentTopAnglers = [];
+        currentTopDonors = [];
+        nextSceneSlot = 0;
+        approachingCatches.clear();
+        activeCatches.clear();
+        activeCatch = null;
+        approachingCatch = null;
+        outcomePoses.clear();
+        zoomQueue.length = 0;
+        currentZoomTarget = null;
+        spotlightDarkAlpha = 0;
+        lastSpotlightEndTime = 0;
+        catchPresentationQueue.length = 0;
+        isPresentingCatch = false;
+        currentPresentingPlayerId = null;
+        clearTimeout(presentationWatchdogTimer);
+        clearTimeout(catchBoardDismissTimer);
+        clearTimeout(bitePhaseTimer);
+        try {
+          masterAudio.pause();
+          masterAudio.currentTime = 0;
+        } catch (_) { }
+        const cbAlert = document.querySelector('#catchBoardAlert');
+        if (cbAlert) cbAlert.innerHTML = '';
+        camera.targetX = 0;
+        camera.targetY = 0;
+        camera.targetZ = getDefaultZoom();
+        updateAnglerCount();
+        renderLeaderboard();
+        const qBanner = document.querySelector('#spotlightQueueBanner');
+        if (qBanner) qBanner.classList.add('hidden');
+        const vAlert = document.querySelector('#vipGiftAlert');
+        if (vAlert) vAlert.innerHTML = '';
+        const toastsEl = document.querySelector('#toasts');
+        if (toastsEl) toastsEl.innerHTML = '';
+      };
+      socket.on('demo:reset', clearAll);
+
+      /* ================= REMOTE COMMANDS FROM PANEL ================= */
+      socket.on('client:camera-cmd', cmd => {
+        if (cmd === 'recenter') {
+          camera.targetX = 0;
+          camera.targetY = 0;
+          camera.targetZ = getDefaultZoom();
+        } else if (cmd === 'zoomIn') {
+          camera.targetZ = clamp(camera.targetZ * 1.25, camera.minZ, camera.maxZ);
+        } else if (cmd === 'zoomOut') {
+          camera.targetZ = clamp(camera.targetZ * 0.8, camera.minZ, camera.maxZ);
+        } else if (cmd === 'focusTop1') {
+          if (currentTopAnglers.length) {
+            focusAngler({ playerId: currentTopAnglers[0].id });
+          }
+        }
+      });
+
+      socket.on('client:force-pose', ({ pose, durationMs = 3500 } = {}) => {
+        forcedGlobalPose = pose;
+        forcedPoseUntil = performance.now() + durationMs;
+        setTimeout(() => {
+          if (performance.now() >= forcedPoseUntil) forcedGlobalPose = null;
+        }, durationMs);
+      });
+
+      socket.on('client:debug-toggle', enabled => {
+        debugOverlayEnabled = Boolean(enabled);
+      });
+
+      socket.on('client:voice-speed', spd => {
+        if (spd) currentVoiceSpeed = Number(spd);
+      });
+
+      socket.on('client:test-voice', () => {
+        showCatchBoard({
+          fish: {
+            name: 'Cá mú vàng khổng lồ',
+            weight: 43.5,
+            isLuckyBonus: true,
+            tierJump: 1
+          },
+          username: 'Việt Hoàng',
+          coins: 500
+        });
+      });
+
+      /* ================= UI CONTROLS & EVENT LISTENERS ================= */
+      // 1. Leaderboard Drawer Toggle & Tab Switcher
+      const trophyBtn = document.querySelector('#trophyBtn');
+      const leaderboardDrawer = document.querySelector('#leaderboardDrawer');
+      const miniLeaderboardStrip = document.querySelector('#miniLeaderboardStrip');
+      const closeLeaderboardBtn = document.querySelector('#closeLeaderboardBtn');
+      const minimizeLeaderboardBtn = document.querySelector('#minimizeLeaderboardBtn');
+      const tabAnglersBtn = document.querySelector('#tabAnglersBtn');
+      const tabDonorsBtn = document.querySelector('#tabDonorsBtn');
+
+      function openLeaderboard() {
+        leaderboardDrawer?.classList.remove('hidden');
+        miniLeaderboardStrip?.classList.add('hidden');
+        trophyBtn?.classList.add('ring-2', 'ring-amber-400', 'bg-amber-500/30');
+      }
+
+      function closeOrMinimizeLeaderboard() {
+        leaderboardDrawer?.classList.add('hidden');
+        miniLeaderboardStrip?.classList.remove('hidden');
+        trophyBtn?.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-500/30');
+      }
+
+      function toggleLeaderboard() {
+        if (leaderboardDrawer?.classList.contains('hidden')) {
+          openLeaderboard();
+        } else {
+          closeOrMinimizeLeaderboard();
+        }
+      }
+
+      trophyBtn?.addEventListener('click', toggleLeaderboard);
+      minimizeLeaderboardBtn?.addEventListener('click', closeOrMinimizeLeaderboard);
+      closeLeaderboardBtn?.addEventListener('click', closeOrMinimizeLeaderboard);
+      miniLeaderboardStrip?.addEventListener('click', openLeaderboard);
+
+      tabAnglersBtn?.addEventListener('click', () => {
+        activeLeaderboardTab = 'anglers';
+        renderLeaderboard();
+      });
+      tabDonorsBtn?.addEventListener('click', () => {
+        activeLeaderboardTab = 'donors';
+        renderLeaderboard();
+      });
+
+      // 2. Rules Modal
+      const rulesBtn = document.querySelector('#rulesBtn');
+      const rulesModal = document.querySelector('#rulesModal');
+      const closeRulesBtn = document.querySelector('#closeRulesBtn');
+      const rulesGotItBtn = document.querySelector('#rulesGotItBtn');
+
+      rulesBtn?.addEventListener('click', () => rulesModal?.classList.remove('hidden'));
+      document.querySelector('#openRulesFromFooterBtn')?.addEventListener('click', () => rulesModal?.classList.remove('hidden'));
+      closeRulesBtn?.addEventListener('click', () => rulesModal?.classList.add('hidden'));
+      rulesGotItBtn?.addEventListener('click', () => rulesModal?.classList.add('hidden'));
+      rulesModal?.addEventListener('click', e => {
+        if (e.target === rulesModal) rulesModal.classList.add('hidden');
+      });
+
+      // Initial Fetch from REST endpoints
+      fetch('/api/leaderboard')
+        .then(r => r.json())
+        .then(data => {
+          if (data.topAnglers) currentTopAnglers = data.topAnglers;
+          if (data.topDonors) currentTopDonors = data.topDonors;
+          renderLeaderboard();
+        })
+        .catch(() => { });
+
+      fetch('/api/stream-stats')
+        .then(r => r.json())
+        .then(stats => updateStreamStats(stats))
+        .catch(() => { });
+
+      window.addEventListener('keydown', e => {
+        if (e.key === 'b' || e.key === 'B') leaderboardDrawer?.classList.toggle('hidden');
+        if (e.key === 'r' || e.key === 'R') { camera.targetX = 0; camera.targetY = 0; camera.targetZ = getDefaultZoom(); }
+        if (e.key === 'Escape') {
+          leaderboardDrawer?.classList.add('hidden');
+          rulesModal?.classList.add('hidden');
+        }
+      });
+
+      canvas.addEventListener('dblclick', () => {
+        if (!socket.connected) return;
+        const coins = [1, 10, 100][Math.floor(Math.random() * 3)];
+        socket.emit('demo:join', { username: 'Khách xem' });
+        socket.emit('demo:gift', { username: 'Khách xem', giftName: coins === 1 ? 'Hoa hồng' : coins === 10 ? 'Cua' : 'Sư tử', coins });
+      });
+    })();
+  </script>
+</body>
+
+</html>

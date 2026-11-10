@@ -1,0 +1,1151 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bảng Điều Khiển — TikTok Fishing Live</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #061117;
+      color: #eff8f7;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      min-height: 100vh;
+    }
+    .glass {
+      background: linear-gradient(135deg, rgba(14, 34, 44, 0.85), rgba(10, 26, 34, 0.75));
+      border: 1px solid rgba(199, 245, 236, 0.12);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(12px);
+    }
+    .glow-teal { text-shadow: 0 0 16px rgba(112, 228, 196, 0.5); }
+    .glow-gold { text-shadow: 0 0 16px rgba(255, 209, 102, 0.5); }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.25); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+  </style>
+</head>
+<body class="p-3 sm:p-6">
+  <div class="max-w-7xl mx-auto space-y-5">
+    
+    <!-- Top Header -->
+    <header class="glass rounded-3xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 border border-emerald-400/20">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-emerald-400/20 border border-emerald-400/30 flex items-center justify-center text-2xl shadow-inner">
+          🎛️
+        </div>
+        <div>
+          <div class="text-[10px] sm:text-xs uppercase tracking-[0.25em] text-emerald-300/80 font-bold">Streamer Dashboard</div>
+          <h1 class="text-lg sm:text-2xl font-black tracking-tight text-white glow-teal">
+            BẢNG ĐIỀU KHIỂN <span class="text-emerald-400">BỜ CÂU BÌNH YÊN</span>
+          </h1>
+        </div>
+      </div>
+
+      <!-- Action & Links -->
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <!-- TikTok Status Pill -->
+        <div class="glass rounded-2xl px-3 py-1.5 flex items-center gap-2 text-xs">
+          <span id="ttLiveDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 "></span>
+          <span id="ttLiveStatus" class="font-medium text-white/90">Chờ kết nối TikTok</span>
+        </div>
+
+        <!-- Open on Phone Guide Pill -->
+        <div class="glass rounded-2xl px-3 py-1.5 flex items-center gap-1.5 text-xs text-emerald-300 font-semibold border border-emerald-400/30">
+          <span>📱</span>
+          <span>Mở trên đ/thoại: <code class="text-white font-mono bg-black/40 px-1.5 py-0.5 rounded">http://192.168.1.153:3000</code></span>
+        </div>
+
+        <!-- Open Viewer Screen Button -->
+        <a href="/" target="_blank" class="px-4 py-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all active:scale-95">
+          <span>📺</span> Mở Màn Hình Stream (Viewer)
+          <span class="text-[10px] bg-black/25 px-1.5 py-0.5 rounded">Tab mới</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- TikTok LIVE Connection Control Bar -->
+    <section class="glass rounded-3xl p-4 sm:p-5 border border-pink-500/30 bg-gradient-to-r from-pink-950/40 via-purple-950/30 to-slate-900/60 shadow-xl space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-pink-500/20 border border-pink-400/40 text-pink-300 grid place-items-center text-xl shrink-0">
+            📡
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm sm:text-base font-black text-white">Kết Nối Phòng TikTok LIVE</h2>
+              <span id="panelTtBadge" class="text-[9.5px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30">
+                Chưa kết nối
+              </span>
+            </div>
+            <p class="text-[11px] text-white/60">
+              Nhập <b class="text-pink-300">@username</b> kênh đang phát sóng để tự động nhận bình luận (vào bờ câu), thả tim (giảm hồi chiêu) và quà tặng từ người xem.
+            </p>
+          </div>
+        </div>
+
+        <!-- Connection Form -->
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <div class="relative flex-1 sm:w-64">
+            <span class="absolute left-3 top-2.5 text-white/40 text-xs font-bold">@</span>
+            <input id="inputTiktokUsername" type="text" placeholder="username_tiktok"
+              class="w-full pl-7 pr-3 py-2 rounded-xl bg-black/50 border border-white/20 text-xs text-white placeholder-white/30 focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none transition-all">
+          </div>
+          <button id="btnConnectTiktok"
+            class="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-pink-900/40 transition-all active:scale-95 shrink-0">
+            <span>⚡</span> Kết nối
+          </button>
+          <button id="btnDisconnectTiktok"
+            class="hidden px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-200 font-bold text-xs transition-all active:scale-95 shrink-0">
+            Ngắt
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Tips for Streamer -->
+      <div class="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between text-[11px] text-white/50 gap-2">
+        <div class="flex items-center gap-2">
+          <span>💡</span>
+          <span>Dùng OBS hoặc TikTok LIVE Studio: Thêm nguồn <b>Browser Source</b> với URL: <code class="px-1.5 py-0.5 rounded bg-black/40 text-emerald-300 font-mono">http://localhost:3000</code></span>
+        </div>
+        <div class="text-[10px] text-white/40">
+          Room ID: <span id="panelTtRoomId" class="text-pink-300 font-mono">-</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Quick Cards -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+      <div class="glass rounded-2xl p-4 border border-white/10 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-cyan-400/15 text-cyan-300 grid place-items-center text-xl">👥</div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Cần thủ trên bờ</div>
+          <div id="statTotalPlayers" class="text-xl sm:text-2xl font-black text-white">0</div>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-4 border border-white/10 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-400/15 text-amber-300 grid place-items-center text-xl">🏆</div>
+        <div class="min-w-0">
+          <div class="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Top 1 Cần Thủ</div>
+          <div id="statTop1" class="text-sm sm:text-base font-bold text-amber-300 truncate">Chưa có</div>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-4 border border-white/10 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-400/15 text-emerald-300 grid place-items-center text-xl">🐟</div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Cá đã kéo</div>
+          <div id="statTotalCatches" class="text-xl sm:text-2xl font-black text-emerald-300">0</div>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-4 border border-white/10 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-400/15 text-rose-300 grid place-items-center text-xl">🎁</div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Lượt tặng quà</div>
+          <div id="statTotalGifts" class="text-xl sm:text-2xl font-black text-rose-300">0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Grid: Controls Left, Live Event Feed & Leaderboard Right -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      
+      <!-- Left Column (2 Cols wide on desktop) -->
+      <div class="lg:col-span-2 space-y-5">
+        
+                <!-- Section 0: Bot Stress Test (50 Cần Thủ & Bão Quà Liên Tục) -->
+        <section class="glass rounded-3xl p-5 border border-purple-500/30 space-y-4 bg-gradient-to-br from-purple-950/30 via-slate-900/60 to-emerald-950/20 shadow-xl shadow-purple-950/20">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl p-2 rounded-xl bg-purple-500/20 border border-purple-500/30">🤖</span>
+              <div>
+                <h2 class="text-base sm:text-lg font-black flex items-center gap-2 text-white">
+                  BOT STRESS TEST <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40">50 Cần Thủ Đồng Thời</span>
+                </h2>
+                <div class="text-[11px] text-purple-200/70">Mô phỏng 50 người xem câu cá & tặng quà dồn dập để đo FPS và độ ổn định</div>
+              </div>
+            </div>
+
+            <!-- Bot Live Badge -->
+            <div id="botStatusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10 text-xs">
+              <span id="botStatusDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+              <span id="botStatusText" class="font-bold text-white/70">Chưa kích hoạt</span>
+            </div>
+          </div>
+
+          <!-- Realtime Stats KPI Bar -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div class="bg-black/30 rounded-xl p-2.5 border border-white/5">
+              <div class="text-[10px] text-white/50 uppercase font-semibold">Bot trực tuyến</div>
+              <div id="statBotCount" class="text-lg font-black text-purple-300">0 / 50</div>
+            </div>
+            <div class="bg-black/30 rounded-xl p-2.5 border border-white/5">
+              <div class="text-[10px] text-white/50 uppercase font-semibold">Tốc độ hành động</div>
+              <div id="statBotAps" class="text-lg font-black text-emerald-400">0.0 <span class="text-[10px] font-normal text-emerald-300/70">nhịp/s</span></div>
+            </div>
+            <div class="bg-black/30 rounded-xl p-2.5 border border-white/5">
+              <div class="text-[10px] text-white/50 uppercase font-semibold">Quà đã tặng</div>
+              <div id="statBotGifts" class="text-lg font-black text-rose-400">0</div>
+            </div>
+            <div class="bg-black/30 rounded-xl p-2.5 border border-white/5">
+              <div class="text-[10px] text-white/50 uppercase font-semibold">Tổng xu nạp</div>
+              <div id="statBotCoins" class="text-lg font-black text-amber-300">0 xu</div>
+            </div>
+          </div>
+
+          <!-- Controls: Sliders for dynamic tuning -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div class="bg-black/20 rounded-2xl p-3 border border-white/5 space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-white/80 font-medium">Tần suất nhịp câu:</span>
+                <span id="labelBotInterval" class="font-bold font-mono text-cyan-300">380 ms/lượt</span>
+              </div>
+              <input id="sliderBotInterval" type="range" min="120" max="1200" step="20" value="380" class="w-full accent-cyan-400 cursor-pointer">
+              <div class="flex justify-between text-[9px] text-white/40">
+                <span>Cực đại (120ms)</span>
+                <span>Vừa phải (600ms)</span>
+                <span>Thong thả (1.2s)</span>
+              </div>
+            </div>
+
+            <div class="bg-black/20 rounded-2xl p-3 border border-white/5 space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-white/80 font-medium">Tỉ lệ tặng quà (so với câu thường):</span>
+                <span id="labelBotGiftRatio" class="font-bold font-mono text-pink-300">50% Quà</span>
+              </div>
+              <input id="sliderBotGiftRatio" type="range" min="10" max="95" step="5" value="50" class="w-full accent-pink-400 cursor-pointer">
+              <div class="flex justify-between text-[9px] text-white/40">
+                <span>10% (Chủ yếu câu)</span>
+                <span>50% (Cân bằng)</span>
+                <span>95% (Mưa quà liên tục)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-wrap items-center gap-2.5 pt-1">
+            <button id="btnStartBot50" class="flex-1 min-w-[200px] py-2.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-black text-xs sm:text-sm tracking-wide shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 transition-all active:scale-95">
+              <span>🚀</span> KÍCH HOẠT 50 BOT CÂU CÁ & BÃO QUÀ
+            </button>
+
+            <button id="btnStopBot50" class="py-2.5 px-5 rounded-2xl bg-white/10 hover:bg-rose-500/20 hover:border-rose-500/40 border border-white/15 text-white/80 hover:text-rose-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
+              <span>🛑</span> DỪNG TEST BOT
+            </button>
+
+            <!-- Quick Presets -->
+            <div class="w-full flex items-center gap-1.5 pt-1 text-[11px] text-white/60">
+              <span class="text-[10px]">Cấu hình nhanh:</span>
+              <button class="botPresetBtn px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-white/80" data-interval="500" data-ratio="30">Bình thường (30% quà)</button>
+              <button class="botPresetBtn px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-white/80" data-interval="350" data-ratio="60">Sôi động (60% quà)</button>
+              <button class="botPresetBtn px-2 py-0.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/30 text-purple-200" data-interval="180" data-ratio="85">⚡ Siêu bão quà (85%)</button>
+            </div>
+          </div>
+        </section>
+
+<!-- Section 1: Thêm Cần Thủ (Unlimited Spawner) -->
+        <section class="glass rounded-3xl p-5 border border-white/10 space-y-4">
+          <div class="flex items-center justify-between pb-2 border-b border-white/10">
+            <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 text-white">
+              <span>👥</span> Quản Lý Cần Thủ (Không giới hạn)
+            </h2>
+            <button id="btnResetAll" class="px-3 py-1 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-1 transition-all">
+              ⚠️ Xóa hết cần thủ (Reset)
+            </button>
+          </div>
+
+          <!-- Quick Bulk Spawner -->
+          <div>
+            <div class="text-xs text-white/70 mb-2 font-medium">Thêm nhanh cần thủ đổ bộ bờ câu (Test cuộn & Zoom):</div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <button data-spawn="1" class="spawnBatchBtn py-2 rounded-xl bg-white/5 hover:bg-emerald-400/20 border border-white/10 text-xs font-bold text-white transition-all">+1 Cần thủ</button>
+              <button data-spawn="5" class="spawnBatchBtn py-2 rounded-xl bg-white/5 hover:bg-cyan-400/20 border border-white/10 text-xs font-bold text-cyan-200 transition-all">+5 Cần thủ</button>
+              <button data-spawn="10" class="spawnBatchBtn py-2 rounded-xl bg-white/5 hover:bg-amber-400/20 border border-white/10 text-xs font-bold text-amber-200 transition-all">+10 Cần thủ</button>
+              <button data-spawn="25" class="spawnBatchBtn py-2 rounded-xl bg-emerald-400/20 hover:bg-emerald-400/30 border border-emerald-400/30 text-xs font-bold text-emerald-200 transition-all">+25 Đổ bộ</button>
+              <button data-spawn="50" class="spawnBatchBtn py-2 rounded-xl bg-purple-400/20 hover:bg-purple-400/30 border border-purple-400/30 text-xs font-bold text-purple-200 transition-all">+50 Đại hội</button>
+            </div>
+          </div>
+
+          <!-- Custom Player Join Form -->
+          <div class="pt-2 border-t border-white/10">
+            <div class="text-xs text-white/70 mb-2 font-medium">Thêm cần thủ tùy chỉnh:</div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <input id="customUsername" type="text" maxlength="24" placeholder="Tên cần thủ (vd: Hoàng Nam)" class="rounded-xl bg-black/40 border border-white/15 px-3 py-2 text-xs outline-none focus:border-emerald-400 text-white">
+              
+              <select id="customCharSelect" class="rounded-xl bg-black/40 border border-white/15 px-3 py-2 text-xs outline-none focus:border-emerald-400 text-emerald-200">
+                <option value="">Chọn nhân vật ngẫu nhiên</option>
+              </select>
+
+              <button id="btnJoinCustom" class="py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 text-white text-xs font-bold shadow-md transition-all">
+                🎣 Cho Vào Bờ Câu
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 2: Quà Tặng & Giật Cần Simulator -->
+        <section class="glass rounded-3xl p-5 border border-white/10 space-y-4">
+          <div class="flex items-center justify-between pb-2 border-b border-white/10">
+            <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 text-white">
+              <span>🎁</span> Mô Phỏng Quà Tặng & Giật Cần
+            </h2>
+            <div class="text-xs text-white/50">Kích hoạt cá cắn & kéo cá</div>
+          </div>
+
+          <!-- Target player selector -->
+          <div class="flex items-center gap-2 text-xs">
+            <label for="targetPlayerSelect" class="text-white/70 whitespace-nowrap">Chọn cần thủ nhận quà:</label>
+            <select id="targetPlayerSelect" class="flex-1 rounded-xl bg-black/40 border border-white/15 px-3 py-1.5 text-xs text-emerald-200 outline-none">
+              <option value="">Ngẫu nhiên một cần thủ trên bờ</option>
+            </select>
+          </div>
+
+          <!-- Gift Buttons Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <button data-coins="1" data-gift="Hoa hồng" class="panelGiftBtn glass rounded-2xl p-3 border border-white/10 hover:border-pink-400/40 text-left transition-all group">
+              <div class="text-2xl mb-1">🌹</div>
+              <div class="font-bold text-xs text-white">Hoa hồng (1 xu)</div>
+              <div class="text-[10px] text-pink-300">Cá nhỏ • 35% trúng</div>
+            </button>
+
+            <button data-coins="10" data-gift="Cua" class="panelGiftBtn glass rounded-2xl p-3 border border-white/10 hover:border-orange-400/40 text-left transition-all group">
+              <div class="text-2xl mb-1">🦀</div>
+              <div class="font-bold text-xs text-white">Cua đỏ (10 xu)</div>
+              <div class="text-[10px] text-orange-300">Cá vừa • 65% trúng</div>
+            </button>
+
+            <button data-coins="100" data-gift="Sư tử" class="panelGiftBtn glass rounded-2xl p-3 border border-white/10 hover:border-amber-400/40 text-left transition-all group">
+              <div class="text-2xl mb-1">🦁</div>
+              <div class="font-bold text-xs text-white">Sư tử (100 xu)</div>
+              <div class="text-[10px] text-amber-300">Cá Boss • 92% trúng</div>
+            </button>
+
+            <button data-coins="500" data-gift="Rồng Vàng" class="panelGiftBtn glass rounded-2xl p-3 border border-yellow-400/20 hover:border-yellow-400/60 text-left transition-all group bg-amber-500/10">
+              <div class="text-2xl mb-1">🐉</div>
+              <div class="font-bold text-xs text-yellow-300">Rồng Vàng (500 xu)</div>
+              <div class="text-[10px] text-yellow-200">Cực phẩm • 98% Boss</div>
+            </button>
+          </div>
+
+          <!-- Direct Cast & Pose Tests -->
+          <div class="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button id="btnNormalCast" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white/90 flex items-center gap-1.5">
+                🎣 Giật cần bình thường (Không xu)
+              </button>
+              <button id="btnTestVoice" class="px-3 py-1.5 rounded-xl bg-purple-500/25 hover:bg-purple-500/35 border border-purple-400/40 text-xs font-semibold text-purple-200 flex items-center gap-1.5 transition-all active:scale-95">
+                🔊 Thử giọng đọc thông báo
+              </button>
+              <!-- Voice Speed Selector -->
+              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-xs">
+                <span class="text-white/50 text-[10.5px]">⚡ Tốc độ đọc:</span>
+                <button data-speed="1.15" class="voiceSpeedBtn px-2 py-0.5 rounded-lg text-[10.5px] font-bold text-white/60 hover:text-white transition-all">1.15x</button>
+                <button data-speed="1.28" class="voiceSpeedBtn px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-pink-500/30 text-pink-200 border border-pink-400/50 transition-all">1.28x (Chuẩn)</button>
+                <button data-speed="1.4" class="voiceSpeedBtn px-2 py-0.5 rounded-lg text-[10.5px] font-bold text-white/60 hover:text-white transition-all">1.40x</button>
+                <button data-speed="1.5" class="voiceSpeedBtn px-2 py-0.5 rounded-lg text-[10.5px] font-bold text-white/60 hover:text-white transition-all">1.50x</button>
+              </div>
+            </div>
+
+            <!-- Force pose test -->
+            <div class="flex items-center gap-1 text-xs">
+              <span class="text-white/50 text-[10px]">Ép tư thế (3s):</span>
+              <button data-pose="idle" class="forcePoseBtn px-2 py-1 rounded-lg bg-white/5 hover:bg-emerald-400/20 text-[10px]">Chờ</button>
+              <button data-pose="bite" class="forcePoseBtn px-2 py-1 rounded-lg bg-white/5 hover:bg-amber-400/20 text-[10px]">Cắn</button>
+              <button data-pose="catch" class="forcePoseBtn px-2 py-1 rounded-lg bg-white/5 hover:bg-cyan-400/20 text-[10px]">Trúng</button>
+              <button data-pose="miss" class="forcePoseBtn px-2 py-1 rounded-lg bg-white/5 hover:bg-rose-400/20 text-[10px]">Tuột</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 3: Điều Khiển Camera & Sân Khấu Từ Xa -->
+        <section class="glass rounded-3xl p-5 border border-white/10 space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-white/10">
+            <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 text-white">
+              <span>🎥</span> Điều Khiển Camera Sân Khấu (Từ Xa)
+            </h2>
+            <div class="text-[10px] text-emerald-300">Tác động tức thì lên màn hình Stream</div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <button id="btnCamRecenter" class="px-3.5 py-2 rounded-xl bg-emerald-400/20 hover:bg-emerald-400/30 border border-emerald-400/30 font-bold text-emerald-200 flex items-center gap-1.5 transition-all active:scale-95">
+              <span>🎯</span> Kéo Camera Về Giữa
+            </button>
+            <button id="btnCamZoomIn" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 font-bold text-white flex items-center gap-1.5 transition-all active:scale-95">
+              <span>🔍</span> Phóng To (+25%)
+            </button>
+            <button id="btnCamZoomOut" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 font-bold text-white flex items-center gap-1.5 transition-all active:scale-95">
+              <span>🔎</span> Thu Nhỏ (-20%)
+            </button>
+            <button id="btnCamFocusTop1" class="px-3.5 py-2 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/30 font-bold text-amber-200 flex items-center gap-1.5 transition-all active:scale-95">
+              <span>🌟</span> Focus Cận Cảnh Top 1
+            </button>
+            
+            <label class="ml-auto flex items-center gap-1.5 cursor-pointer text-white/70 select-none text-xs">
+              <input type="checkbox" id="checkDebugOverlay" class="rounded bg-black/40 border-white/20 text-emerald-400">
+              <span>Tâm căn & đầu cần</span>
+            </label>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right Column: Bảng Xếp Hạng & Nhật Ký Sự Kiện -->
+      <div class="space-y-5">
+        
+        <!-- Live Leaderboard -->
+        <section class="glass rounded-3xl p-5 border border-white/10 space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-white/10">
+            <h2 class="text-sm sm:text-base font-bold flex items-center gap-2 text-white">
+              <span>🏆</span> Bảng Xếp Hạng Cần Thủ
+            </h2>
+            <span class="text-xs text-white/50">Top 10</span>
+          </div>
+
+          <div id="panelLeaderboardList" class="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+            <div class="text-xs text-white/40 py-4 text-center">Chưa có cần thủ nào...</div>
+          </div>
+        </section>
+
+        <!-- Real-time Event Log -->
+        <section class="glass rounded-3xl p-5 border border-white/10 space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-white/10">
+            <h2 class="text-sm sm:text-base font-bold flex items-center gap-2 text-white">
+              <span>📜</span> Nhật Ký Sự Kiện Trực Tiếp
+            </h2>
+            <button id="btnClearLog" class="text-[10px] text-white/40 hover:text-white">Xóa log</button>
+          </div>
+
+          <div id="eventLogContainer" class="space-y-1.5 max-h-80 overflow-y-auto pr-1 font-mono text-[11px]">
+            <div class="text-white/40 py-4 text-center font-sans text-xs">Chưa có sự kiện nào...</div>
+          </div>
+        </section>
+
+      </div>
+
+    </div>
+
+    
+    <!-- Section 5: Quản Lý Phân Cấp Trọng Lượng (Weight Tiers) & Gift Catalog TikTok -->
+    <section class="glass rounded-3xl p-5 border border-white/10 space-y-4">
+      <div class="flex items-center justify-between pb-2 border-b border-white/10">
+        <div>
+          <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 text-white">
+            <span>⚙️</span> Cấu Hình Trọng Lượng Cá & Danh Mục Quà TikTok
+          </h2>
+          <div class="text-xs text-white/60">Quản trị viên có thể xem và cập nhật trực tiếp bảng cấu hình game</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Bảng Cấu Hình Trọng Lượng (Weight Tiers) -->
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between text-xs font-bold text-amber-300">
+            <span>🐟 Bảng Phân Cấp Trọng Lượng Cá (11 Bậc Xu)</span>
+            <button id="btnReloadTiers" class="text-[10px] text-white/50 hover:text-white">Tải lại</button>
+          </div>
+          <div class="overflow-x-auto max-h-60 overflow-y-auto">
+            <table class="w-full text-left text-[11px] text-white/80">
+              <thead class="text-white/40 border-b border-white/10 text-[10px]">
+                <tr>
+                  <th class="py-1">Mức Xu</th>
+                  <th class="py-1">Tên Cá</th>
+                  <th class="py-1">Trọng Lượng (kg)</th>
+                  <th class="py-1">Độ Hiếm</th>
+                </tr>
+              </thead>
+              <tbody id="weightTiersTableBody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Bảng Quản Lý Gift Catalog -->
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5">
+          <div class="flex items-center justify-between text-xs font-bold text-emerald-300">
+            <span>🎁 TikTok Gift Catalog (Tra cứu giftId -> Xu)</span>
+            <button id="btnReloadCatalog" class="text-[10px] text-white/50 hover:text-white">Tải lại</button>
+          </div>
+          <div class="overflow-x-auto max-h-44 overflow-y-auto">
+            <table class="w-full text-left text-[11px] text-white/80">
+              <thead class="text-white/40 border-b border-white/10 text-[10px]">
+                <tr>
+                  <th class="py-1">Gift ID</th>
+                  <th class="py-1">Tên Quà</th>
+                  <th class="py-1">Số Xu</th>
+                </tr>
+              </thead>
+              <tbody id="giftCatalogTableBody">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Form Thêm/Cập nhật Quà -->
+          <div class="pt-2 border-t border-white/10 flex items-center gap-1.5 text-xs">
+            <input id="inputNewGiftId" type="number" placeholder="Gift ID (vd: 5655)" class="w-28 px-2 py-1 rounded-lg bg-black/40 border border-white/15 text-[11px] text-white">
+            <input id="inputNewGiftName" type="text" placeholder="Tên quà" class="flex-1 px-2 py-1 rounded-lg bg-black/40 border border-white/15 text-[11px] text-white">
+            <input id="inputNewGiftCoins" type="number" placeholder="Số xu" class="w-20 px-2 py-1 rounded-lg bg-black/40 border border-white/15 text-[11px] text-white">
+            <button id="btnAddCatalogGift" class="px-3 py-1 rounded-lg bg-emerald-500/30 hover:bg-emerald-500/50 text-emerald-200 font-bold text-xs whitespace-nowrap active:scale-95 transition-all">Lưu</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Studio Xem Trước 13 Nhân Vật -->
+    <section class="glass rounded-3xl p-5 border border-white/10 space-y-4">
+      <div class="flex items-center justify-between pb-2 border-b border-white/10">
+        <div>
+          <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 text-white">
+            <span>🎨</span> Kho Nhân Vật 3D/Anime (13 Nhân Vật)
+          </h2>
+          <div class="text-xs text-white/60">Tất cả nhân vật sẵn có trong game với đầu cần câu & độ căn chuẩn xác</div>
+        </div>
+
+        <div class="flex items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-white/10 text-xs">
+          <button data-studio-pose="idle" class="panelStudioPoseBtn px-3 py-1 rounded-lg bg-emerald-400/25 text-emerald-200 font-semibold">Chờ (Idle)</button>
+          <button data-studio-pose="bite" class="panelStudioPoseBtn px-3 py-1 rounded-lg text-white/60 hover:text-white">Cắn (Bite)</button>
+          <button data-studio-pose="catch" class="panelStudioPoseBtn px-3 py-1 rounded-lg text-white/60 hover:text-white">Trúng (Catch)</button>
+          <button data-studio-pose="miss" class="panelStudioPoseBtn px-3 py-1 rounded-lg text-white/60 hover:text-white">Tuột (Miss)</button>
+          <button data-studio-pose="walkLeft" class="panelStudioPoseBtn px-3 py-1 rounded-lg text-white/60 hover:text-white">Đi trái</button>
+          <button data-studio-pose="walkRight" class="panelStudioPoseBtn px-3 py-1 rounded-lg text-white/60 hover:text-white">Đi phải</button>
+        </div>
+      </div>
+
+      <div id="panelStudioGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3 pt-2">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+  (() => {
+    const socket = io();
+    const CHARACTER_METRICS = {"2e22842e22842e22":{"idle":{"anchorX":0.352,"groundY":0.895,"tipX":0.813,"tipY":0.138,"width":607,"height":609},"bite":{"anchorX":0.307,"groundY":0.984,"tipX":0.98,"tipY":0.073,"width":792,"height":546},"catch":{"anchorX":0.452,"groundY":0.984,"tipX":null,"tipY":null,"width":493,"height":547},"miss":{"anchorX":0.38,"groundY":0.983,"tipX":null,"tipY":null,"width":470,"height":532},"walkLeft":{"anchorX":0.436,"groundY":0.9,"tipX":null,"tipY":null,"width":511,"height":609},"walkRight":{"anchorX":0.398,"groundY":0.9,"tipX":null,"tipY":null,"width":507,"height":609}},"3ztdn33ztdn33ztd":{"idle":{"anchorX":0.252,"groundY":0.984,"tipX":0.925,"tipY":0.067,"width":571,"height":550},"bite":{"anchorX":0.316,"groundY":0.998,"tipX":0.98,"tipY":0.068,"width":787,"height":556},"catch":{"anchorX":0.651,"groundY":0.998,"tipX":null,"tipY":null,"width":575,"height":549},"miss":{"anchorX":0.392,"groundY":0.998,"tipX":null,"tipY":null,"width":415,"height":534},"walkLeft":{"anchorX":0.361,"groundY":0.984,"tipX":null,"tipY":null,"width":397,"height":566},"walkRight":{"anchorX":0.326,"groundY":0.984,"tipX":null,"tipY":null,"width":432,"height":558}},"4s1udf4s1udf4s1u":{"idle":{"anchorX":0.298,"groundY":0.985,"tipX":0.848,"tipY":0.036,"width":618,"height":601},"bite":{"anchorX":0.484,"groundY":0.998,"tipX":0.97,"tipY":0,"width":539,"height":560},"catch":{"anchorX":0.603,"groundY":0.998,"tipX":null,"tipY":null,"width":578,"height":560},"miss":{"anchorX":0.325,"groundY":0.998,"tipX":null,"tipY":null,"width":419,"height":560},"walkLeft":{"anchorX":0.289,"groundY":0.985,"tipX":null,"tipY":null,"width":428,"height":595},"walkRight":{"anchorX":0.64,"groundY":0.985,"tipX":null,"tipY":null,"width":416,"height":601}},"5907hx5907hx5907":{"idle":{"anchorX":0.321,"groundY":0.985,"tipX":0.887,"tipY":0.105,"width":639,"height":584},"bite":{"anchorX":0.412,"groundY":0.988,"tipX":0.968,"tipY":0.071,"width":814,"height":560},"catch":{"anchorX":0.53,"groundY":0.998,"tipX":null,"tipY":null,"width":567,"height":560},"miss":{"anchorX":0.35,"groundY":0.998,"tipX":null,"tipY":null,"width":449,"height":550},"walkLeft":{"anchorX":0.354,"groundY":0.984,"tipX":null,"tipY":null,"width":494,"height":571},"walkRight":{"anchorX":0.375,"groundY":0.984,"tipX":null,"tipY":null,"width":494,"height":575}},"60b3lk60b3lk60b3":{"idle":{"anchorX":0.435,"groundY":0.985,"tipX":0.824,"tipY":0.226,"width":497,"height":602},"bite":{"anchorX":0.403,"groundY":0.998,"tipX":0.839,"tipY":0,"width":857,"height":560},"catch":{"anchorX":0.531,"groundY":0.998,"tipX":null,"tipY":null,"width":512,"height":560},"miss":{"anchorX":0.385,"groundY":0.998,"tipX":null,"tipY":null,"width":461,"height":560},"walkLeft":{"anchorX":0.395,"groundY":0.985,"tipX":null,"tipY":null,"width":489,"height":598},"walkRight":{"anchorX":0.342,"groundY":0.985,"tipX":null,"tipY":null,"width":519,"height":598}},"dmgej4dmgej4dmge":{"idle":{"anchorX":0.25,"groundY":0.997,"tipX":0.735,"tipY":0.179,"width":811,"height":596},"bite":{"anchorX":0.291,"groundY":0.989,"tipX":0.704,"tipY":0,"width":873,"height":560},"catch":{"anchorX":0.584,"groundY":0.985,"tipX":null,"tipY":null,"width":579,"height":606},"miss":{"anchorX":0.576,"groundY":0.991,"tipX":null,"tipY":null,"width":630,"height":560},"walkLeft":{"anchorX":0.303,"groundY":0.984,"tipX":null,"tipY":null,"width":578,"height":578},"walkRight":{"anchorX":0.333,"groundY":0.985,"tipX":null,"tipY":null,"width":489,"height":606}},"eef70eeef70eeef7":{"idle":{"anchorX":0.284,"groundY":0.985,"tipX":0.785,"tipY":0.113,"width":613,"height":592},"bite":{"anchorX":0.29,"groundY":0.998,"tipX":0.981,"tipY":0.071,"width":818,"height":560},"catch":{"anchorX":0.475,"groundY":0.998,"tipX":null,"tipY":null,"width":610,"height":560},"miss":{"anchorX":0.56,"groundY":0.998,"tipX":null,"tipY":null,"width":452,"height":560},"walkLeft":{"anchorX":0.355,"groundY":0.985,"tipX":null,"tipY":null,"width":440,"height":589},"walkRight":{"anchorX":0.599,"groundY":0.985,"tipX":null,"tipY":null,"width":420,"height":589}},"i7lqtbi7lqtbi7lq":{"idle":{"anchorX":0.38,"groundY":0.985,"tipX":0.891,"tipY":0.181,"width":554,"height":590},"bite":{"anchorX":0.347,"groundY":0.993,"tipX":0.983,"tipY":0,"width":848,"height":560},"catch":{"anchorX":0.574,"groundY":0.991,"tipX":null,"tipY":null,"width":449,"height":560},"miss":{"anchorX":0.409,"groundY":0.993,"tipX":null,"tipY":null,"width":410,"height":560},"walkLeft":{"anchorX":0.39,"groundY":0.985,"tipX":null,"tipY":null,"width":475,"height":586},"walkRight":{"anchorX":0.355,"groundY":0.985,"tipX":null,"tipY":null,"width":479,"height":586}},"ik0a62ik0a62ik0a":{"idle":{"anchorX":0.297,"groundY":0.984,"tipX":0.833,"tipY":0.106,"width":612,"height":579},"bite":{"anchorX":0.324,"groundY":0.984,"tipX":0.93,"tipY":0.073,"width":817,"height":558},"catch":{"anchorX":0.508,"groundY":0.984,"tipX":null,"tipY":null,"width":539,"height":558},"miss":{"anchorX":0.609,"groundY":0.984,"tipX":null,"tipY":null,"width":408,"height":558},"walkLeft":{"anchorX":0.277,"groundY":0.984,"tipX":null,"tipY":null,"width":534,"height":578},"walkRight":{"anchorX":0.578,"groundY":0.985,"tipX":null,"tipY":null,"width":461,"height":606}},"mb0p9imb0p9imb0p":{"idle":{"anchorX":0.292,"groundY":0.985,"tipX":0.787,"tipY":0.11,"width":620,"height":590},"bite":{"anchorX":0.303,"groundY":0.998,"tipX":0.981,"tipY":0.068,"width":832,"height":560},"catch":{"anchorX":0.475,"groundY":0.998,"tipX":null,"tipY":null,"width":610,"height":560},"miss":{"anchorX":0.59,"groundY":0.998,"tipX":null,"tipY":null,"width":430,"height":546},"walkLeft":{"anchorX":0.355,"groundY":0.985,"tipX":null,"tipY":null,"width":440,"height":589},"walkRight":{"anchorX":0.598,"groundY":0.985,"tipX":null,"tipY":null,"width":420,"height":590}},"nk5hh9nk5hh9nk5h":{"idle":{"anchorX":0.413,"groundY":0.985,"tipX":0.964,"tipY":0.092,"width":560,"height":598},"bite":{"anchorX":0.398,"groundY":0.998,"tipX":0.998,"tipY":0.108,"width":502,"height":622},"catch":{"anchorX":0.495,"groundY":0.998,"tipX":null,"tipY":null,"width":522,"height":605},"miss":{"anchorX":0.557,"groundY":0.998,"tipX":null,"tipY":null,"width":630,"height":560},"walkLeft":{"anchorX":0.294,"groundY":0.985,"tipX":null,"tipY":null,"width":541,"height":598},"walkRight":{"anchorX":0.408,"groundY":0.901,"tipX":null,"tipY":null,"width":508,"height":618},"reel":{"anchorX":0.398,"groundY":0.998,"tipX":0.998,"tipY":0.108,"width":502,"height":622}},"su9dk9su9dk9su9d":{"idle":{"anchorX":0.379,"groundY":0.885,"tipX":0.909,"tipY":0.101,"width":548,"height":620},"bite":{"anchorX":0.304,"groundY":0.984,"tipX":0.978,"tipY":0.075,"width":760,"height":546},"catch":{"anchorX":0.571,"groundY":0.984,"tipX":null,"tipY":null,"width":472,"height":548},"miss":{"anchorX":0.366,"groundY":0.984,"tipX":null,"tipY":null,"width":441,"height":547},"walkLeft":{"anchorX":0.379,"groundY":0.894,"tipX":null,"tipY":null,"width":515,"height":616},"walkRight":{"anchorX":0.336,"groundY":0.885,"tipX":null,"tipY":null,"width":508,"height":620}},"ts1cwrts1cwrts1c":{"idle":{"anchorX":0.417,"groundY":0.985,"tipX":0.923,"tipY":0.066,"width":554,"height":590},"bite":{"anchorX":0.395,"groundY":0.989,"tipX":0.982,"tipY":0.059,"width":907,"height":560},"catch":{"anchorX":0.569,"groundY":0.989,"tipX":null,"tipY":null,"width":460,"height":560},"miss":{"anchorX":0.42,"groundY":0.991,"tipX":null,"tipY":null,"width":478,"height":560},"walkLeft":{"anchorX":0.353,"groundY":0.985,"tipX":null,"tipY":null,"width":512,"height":589},"walkRight":{"anchorX":0.598,"groundY":0.985,"tipX":null,"tipY":null,"width":502,"height":590}}};
+    const CHARACTER_IDS = ["2e22842e22842e22","3ztdn33ztdn33ztd","4s1udf4s1udf4s1u","5907hx5907hx5907","60b3lk60b3lk60b3","dmgej4dmgej4dmge","eef70eeef70eeef7","i7lqtbi7lqtbi7lq","ik0a62ik0a62ik0a","mb0p9imb0p9imb0p","nk5hh9nk5hh9nk5h","su9dk9su9dk9su9d","ts1cwrts1cwrts1c"];
+
+    let allPlayers = [];
+    let leaderboard = [];
+    let totalCatches = 0;
+    let totalGifts = 0;
+    let studioPose = 'idle';
+
+    const ttLiveDot = document.querySelector('#ttLiveDot');
+    const ttLiveStatus = document.querySelector('#ttLiveStatus');
+    const statTotalPlayers = document.querySelector('#statTotalPlayers');
+    const statTop1 = document.querySelector('#statTop1');
+    const statTotalCatches = document.querySelector('#statTotalCatches');
+    const statTotalGifts = document.querySelector('#statTotalGifts');
+    const panelLeaderboardList = document.querySelector('#panelLeaderboardList');
+    const targetPlayerSelect = document.querySelector('#targetPlayerSelect');
+    const customCharSelect = document.querySelector('#customCharSelect');
+    const eventLogContainer = document.querySelector('#eventLogContainer');
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // Populate custom char select
+    CHARACTER_IDS.forEach((id, idx) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `Cần thủ #${idx + 1} (${id.slice(0, 8)})`;
+      customCharSelect.appendChild(opt);
+    });
+
+    function updateTargetPlayerDropdown() {
+      const current = targetPlayerSelect.value;
+      targetPlayerSelect.innerHTML = '<option value="">Ngẫu nhiên một cần thủ trên bờ</option>';
+      allPlayers.forEach((p, idx) => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.username} (#${idx + 1}, ${p.totalWeight || 0} kg)`;
+        targetPlayerSelect.appendChild(opt);
+      });
+      if (current) targetPlayerSelect.value = current;
+    }
+
+    function renderLeaderboard(list) {
+      leaderboard = list || [];
+      if (!panelLeaderboardList) return;
+      if (!leaderboard.length) {
+        panelLeaderboardList.innerHTML = '<div class="text-xs text-white/40 py-4 text-center">Chưa có cần thủ nào...</div>';
+        statTop1.textContent = 'Chưa có';
+        return;
+      }
+      const topW = Number(leaderboard[0].totalWeight || 0); statTop1.textContent = `${leaderboard[0].username} (${topW >= 10 ? topW.toFixed(1) : topW.toFixed(2)} kg)`;
+      panelLeaderboardList.innerHTML = leaderboard.map((p, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+        const color = i === 0 ? 'text-amber-300 font-bold' : i === 1 ? 'text-slate-200 font-bold' : i === 2 ? 'text-orange-300 font-bold' : 'text-white/40';
+        const border = i === 0 ? 'border border-amber-300/30 bg-amber-400/10' : 'bg-white/5';
+        return `<div class="flex items-center gap-2 p-2 rounded-xl ${border} text-xs">` +
+          `<span class="w-6 text-center text-sm ${color}">${medal}</span>` +
+          (p.avatar ? `<img class="w-7 h-7 rounded-full object-cover ring-1 ring-white/20" src="${p.avatar}" onerror="this.style.display='none'">` : `<span class="w-7 h-7 rounded-full bg-emerald-300/15 grid place-items-center">🎣</span>`) +
+          `<div class="flex-1 min-w-0"><div class="truncate text-white/90 font-medium">${escapeHtml(p.username)}</div></div>` +
+          `<span class="text-amber-300 font-bold whitespace-nowrap">${Number(p.totalWeight || 0).toFixed(2)} kg</span>` +
+        `</div>`;
+      }).join('');
+    }
+
+    function appendEventLog(icon, title, desc, colClass = 'text-white/80') {
+      if (!eventLogContainer) return;
+      if (eventLogContainer.children.length === 1 && eventLogContainer.children[0].textContent.includes('Chưa có')) {
+        eventLogContainer.innerHTML = '';
+      }
+      const timeStr = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+      const item = document.createElement('div');
+      item.className = 'flex items-start gap-2 p-1.5 rounded-lg bg-white/5 border border-white/5';
+      item.innerHTML = `<span class="text-xs">${icon}</span><div class="flex-1 min-w-0"><div class="text-[10px] text-white/40">${timeStr}</div><div class="font-medium ${colClass}">${title}</div>${desc ? `<div class="text-[10px] text-white/60">${desc}</div>` : ''}</div>`;
+      eventLogContainer.prepend(item);
+      if (eventLogContainer.children.length > 60) {
+        eventLogContainer.lastElementChild?.remove();
+      }
+    }
+
+    document.querySelector('#btnClearLog')?.addEventListener('click', () => {
+      eventLogContainer.innerHTML = '<div class="text-white/40 py-4 text-center font-sans text-xs">Đã xóa sạch nhật ký</div>';
+    });
+
+    
+    // Xử lý các nút Thả Tim & Free Cast
+    document.querySelector('#btnLike100')?.addEventListener('click', () => {
+      const pid = targetPlayerSelect?.value;
+      socket.emit('demo:like', { playerId: pid, count: 100 });
+      appendEventLog('💖', 'Thả 100 tim (-1s)', pid ? 'Cần thủ đã chọn' : 'Ngẫu nhiên', 'text-pink-300');
+    });
+    document.querySelector('#btnLike500')?.addEventListener('click', () => {
+      const pid = targetPlayerSelect?.value;
+      socket.emit('demo:like', { playerId: pid, count: 500 });
+      appendEventLog('💖', 'Thả 500 tim (-5s)', pid ? 'Cần thủ đã chọn' : 'Ngẫu nhiên', 'text-pink-300');
+    });
+    document.querySelector('#btnLike1000')?.addEventListener('click', () => {
+      const pid = targetPlayerSelect?.value;
+      socket.emit('demo:like', { playerId: pid, count: 1000 });
+      appendEventLog('🔥', 'Thả 1.000 tim (-10s)', pid ? 'Cần thủ đã chọn' : 'Ngẫu nhiên', 'text-rose-300');
+    });
+    document.querySelector('#btnFreeCast')?.addEventListener('click', () => {
+      const pid = targetPlayerSelect?.value;
+      socket.emit('demo:free-cast', { playerId: pid });
+      appendEventLog('🎣', 'Test câu cá miễn phí (0.1–0.5 kg)', pid ? 'Cần thủ đã chọn' : 'Khách xem', 'text-emerald-300');
+    });
+
+    // Render Bảng Cấu Hình Trọng Lượng & Catalog
+    function loadWeightTiers() {
+      fetch('/api/weight-tiers').then(r => r.json()).then(tiers => {
+        const tbody = document.querySelector('#weightTiersTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = tiers.map(t => {
+          const coinRange = t.maxCoins === Infinity || t.maxCoins > 99999 ? '>=' + t.minCoins : (t.minCoins === t.maxCoins ? t.minCoins : t.minCoins + '–' + t.maxCoins);
+          return `<tr class="border-b border-white/5 py-1">
+            <td class="py-1 font-bold text-amber-200">${coinRange} xu</td>
+            <td class="py-1 text-white">${t.name} <div class="text-[9px] text-white/50">${Array.isArray(t.fishNames) ? t.fishNames.join(', ') : ''}</div></td>
+            <td class="py-1 font-mono text-emerald-300">${t.minKg} – ${t.maxKg} kg</td>
+            <td class="py-1"><span class="px-1.5 py-0.2 rounded text-[9px] font-bold" style="background:${t.color}25; color:${t.color}">${t.rarity}</span></td>
+          </tr>`;
+        }).join('');
+      }).catch(()=>{});
+    }
+
+    function loadGiftCatalog() {
+      fetch('/api/gift-catalog').then(r => r.json()).then(catalog => {
+        const tbody = document.querySelector('#giftCatalogTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = Object.entries(catalog).map(([gid, item]) => {
+          return `<tr class="border-b border-white/5 py-1">
+            <td class="py-1 font-mono text-white/50">${gid}</td>
+            <td class="py-1 text-white font-medium">${escapeHtml(item.name)}</td>
+            <td class="py-1 font-bold text-amber-300">${item.coins} xu</td>
+          </tr>`;
+        }).join('');
+      }).catch(()=>{});
+    }
+
+    document.querySelector('#btnReloadTiers')?.addEventListener('click', loadWeightTiers);
+    document.querySelector('#btnReloadCatalog')?.addEventListener('click', loadGiftCatalog);
+    document.querySelector('#btnAddCatalogGift')?.addEventListener('click', () => {
+      const gid = document.querySelector('#inputNewGiftId')?.value;
+      const gname = document.querySelector('#inputNewGiftName')?.value;
+      const gcoins = document.querySelector('#inputNewGiftCoins')?.value;
+      if (!gid || !gcoins) return alert('Vui lòng nhập Gift ID và Số xu!');
+      fetch('/api/gift-catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ giftId: gid, name: gname, coins: gcoins })
+      }).then(r => r.json()).then(res => {
+        if (res.ok) {
+          loadGiftCatalog();
+          appendEventLog('🎁', `Cập nhật Catalog: ${gname} (${gcoins} xu)`, `Gift ID: ${gid}`, 'text-emerald-300');
+        }
+      });
+    });
+
+    loadWeightTiers();
+    loadGiftCatalog();
+
+    // Studio rendering
+    function renderStudio() {
+      const grid = document.querySelector('#panelStudioGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      const poseFile = studioPose === 'bite' ? 'bite.png' : studioPose === 'catch' ? 'catch.png' : studioPose === 'miss' ? 'miss.png' : studioPose === 'walkLeft' ? 'walk-left.png' : studioPose === 'walkRight' ? 'walk-right.png' : 'idle.png';
+      
+      CHARACTER_IDS.forEach((id, idx) => {
+        const m = CHARACTER_METRICS[id] ? CHARACTER_METRICS[id][studioPose] : {};
+        const card = document.createElement('div');
+        card.className = 'glass rounded-2xl p-2 flex flex-col items-center border border-white/10 text-center relative hover:border-emerald-400/40 transition-all';
+        card.innerHTML = `
+          <div class="w-full flex justify-between text-[9px] text-white/40 mb-1">
+            <span class="text-emerald-300 font-bold">#${idx + 1}</span>
+            <span>${id.slice(0, 6)}</span>
+          </div>
+          <div class="w-full h-28 bg-black/40 rounded-xl flex items-end justify-center overflow-hidden mb-1.5 p-1 relative">
+            <img class="max-h-24 object-contain" src="/assets/characters/${encodeURIComponent(id)}/${poseFile}?v=3" alt="${id}" onerror="this.src='/assets/characters/${encodeURIComponent(id)}/idle.png?v=3'">
+          </div>
+          <div class="text-[10px] font-semibold text-white truncate w-full">Cần thủ #${idx + 1}</div>
+          <button data-id="${id}" class="spawnCharQuickBtn mt-1 w-full py-1 rounded-lg bg-emerald-400/15 hover:bg-emerald-400/30 text-emerald-200 text-[10px] font-semibold">Chọn</button>
+        `;
+        grid.appendChild(card);
+      });
+
+      grid.querySelectorAll('.spawnCharQuickBtn').forEach(b => {
+        b.addEventListener('click', () => {
+          const chosen = b.dataset.id;
+          customCharSelect.value = chosen;
+          appendEventLog('🎨', `Đã chọn nhân vật #${CHARACTER_IDS.indexOf(chosen) + 1}`, chosen.slice(0, 8), 'text-cyan-200');
+        });
+      });
+    }
+
+    document.querySelectorAll('.panelStudioPoseBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.panelStudioPoseBtn').forEach(b => {
+          b.className = 'panelStudioPoseBtn px-3 py-1 rounded-lg text-white/60 hover:text-white';
+        });
+        btn.className = 'panelStudioPoseBtn px-3 py-1 rounded-lg bg-emerald-400/25 text-emerald-200 font-semibold';
+        studioPose = btn.dataset.studioPose;
+        renderStudio();
+      });
+    });
+    renderStudio();
+
+    /* ================= BUTTON EVENTS ================= */
+    // Bulk spawner
+    document.querySelectorAll('.spawnBatchBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const count = Number(btn.dataset.spawn || 1);
+        socket.emit('demo:spawn-batch', { count });
+        appendEventLog('👥', `Đã thêm +${count} cần thủ`, 'Tự động dàn đều bờ hồ', 'text-emerald-300');
+      });
+    });
+
+    // Custom join
+    document.querySelector('#btnJoinCustom')?.addEventListener('click', () => {
+      const name = document.querySelector('#customUsername').value.trim() || `Cần thủ ${allPlayers.length + 1}`;
+      const charId = customCharSelect.value || '';
+      socket.emit('demo:join', { username: name, characterId: charId });
+      appendEventLog('🎣', `${name} đã vào bờ câu`, charId ? `Nhân vật: ${charId.slice(0, 8)}` : 'Nhân vật ngẫu nhiên', 'text-emerald-200');
+    });
+
+    // Gifts
+    document.querySelectorAll('.panelGiftBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const giftName = btn.dataset.gift;
+        const coins = Number(btn.dataset.coins);
+        const targetId = targetPlayerSelect.value;
+        const player = targetId ? allPlayers.find(p => p.id === targetId) : null;
+        const username = player ? player.username : 'Khách xem';
+
+        totalGifts++;
+        statTotalGifts.textContent = totalGifts;
+
+        socket.emit('demo:gift', { username, giftName, coins, playerId: targetId });
+        appendEventLog('🎁', `Tặng ${giftName} (${coins} xu)`, `Gửi tới: ${username}`, 'text-pink-300');
+      });
+    });
+
+    // Normal Cast
+    document.querySelector('#btnNormalCast')?.addEventListener('click', () => {
+      const targetId = targetPlayerSelect.value;
+      const player = targetId ? allPlayers.find(p => p.id === targetId) : null;
+      const username = player ? player.username : 'Khách xem';
+      socket.emit('demo:cast', { username, playerId: targetId });
+      appendEventLog('🎣', `${username} vừa buông cần câu`, 'Đợi cá cắn...', 'text-white/80');
+    });
+
+    // Test Voice Narration & Speed Control
+    let panelTestAudio = new Audio();
+    let currentPanelVoiceSpeed = 1.28;
+
+    function setVoiceSpeedUI(spd) {
+      currentPanelVoiceSpeed = Number(spd) || 1.28;
+      document.querySelectorAll('.voiceSpeedBtn').forEach(b => {
+        const val = Number(b.dataset.speed);
+        if (Math.abs(val - currentPanelVoiceSpeed) < 0.02) {
+          b.className = 'voiceSpeedBtn px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-pink-500/30 text-pink-200 border border-pink-400/50 transition-all';
+        } else {
+          b.className = 'voiceSpeedBtn px-2 py-0.5 rounded-lg text-[10.5px] font-bold text-white/60 hover:text-white transition-all';
+        }
+      });
+    }
+
+    document.querySelectorAll('.voiceSpeedBtn').forEach(b => {
+      b.addEventListener('click', () => {
+        const spd = Number(b.dataset.speed) || 1.28;
+        setVoiceSpeedUI(spd);
+        socket.emit('panel:voice-speed', spd);
+        appendEventLog('⚡', `Đã đổi tốc độ giọng đọc: ${spd}x`, 'Tốc độ áp dụng tức thì lên màn hình Stream', 'text-pink-300');
+      });
+    });
+
+    socket.on('client:voice-speed', spd => {
+      if (spd) setVoiceSpeedUI(spd);
+    });
+
+    document.querySelector('#btnTestVoice')?.addEventListener('click', (e) => {
+      const btn = e.currentTarget;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '🔊 Đang đọc giọng nữ...';
+      btn.classList.add('bg-pink-500/30', 'text-pink-200');
+
+      // 1. Kích hoạt thông báo trên màn hình livestream
+      socket.emit('panel:test-voice');
+
+      // 2. Phát âm thanh trực tiếp trên loa máy chủ để Streamer kiểm tra ngay
+      try {
+        panelTestAudio.pause();
+        panelTestAudio.currentTime = 0;
+        const sampleText = 'Oa, đại may mắn! Cần thủ Việt Hoàng nổ được một bé Cá mú vàng khổng lồ nha!';
+        panelTestAudio.src = '/api/tts?text=' + encodeURIComponent(sampleText);
+        panelTestAudio.playbackRate = currentPanelVoiceSpeed || 1.28;
+        const restoreBtn = () => {
+          btn.innerHTML = originalText;
+          btn.classList.remove('bg-pink-500/30', 'text-pink-200');
+        };
+        panelTestAudio.onended = restoreBtn;
+        panelTestAudio.onerror = restoreBtn;
+        panelTestAudio.play().catch(err => {
+          console.warn('[Panel TTS]', err);
+          restoreBtn();
+        });
+      } catch (_) {
+        btn.innerHTML = originalText;
+        btn.classList.remove('bg-pink-500/30', 'text-pink-200');
+      }
+
+      appendEventLog('🔊', `Đang thử giọng đọc (Tốc độ ${currentPanelVoiceSpeed}x)`, 'Nghe thử trực tiếp & phát lên màn hình game', 'text-pink-300');
+    });
+
+    // Force Poses
+    document.querySelectorAll('.forcePoseBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pose = btn.dataset.pose;
+        socket.emit('panel:force-pose', { pose, durationMs: 3500 });
+        appendEventLog('⚡', `Ép tư thế sân khấu: ${pose.toUpperCase()}`, 'Áp dụng cho tất cả cần thủ (3s)', 'text-amber-300');
+      });
+    });
+
+    // Remote Camera commands
+    document.querySelector('#btnCamRecenter')?.addEventListener('click', () => {
+      socket.emit('panel:camera-cmd', 'recenter');
+      appendEventLog('🎥', 'Lệnh Camera: Kéo về giữa bờ', 'Đã gửi tới màn hình stream', 'text-emerald-300');
+    });
+    document.querySelector('#btnCamZoomIn')?.addEventListener('click', () => {
+      socket.emit('panel:camera-cmd', 'zoomIn');
+      appendEventLog('🎥', 'Lệnh Camera: Phóng to (+25%)', '', 'text-white');
+    });
+    document.querySelector('#btnCamZoomOut')?.addEventListener('click', () => {
+      socket.emit('panel:camera-cmd', 'zoomOut');
+      appendEventLog('🎥', 'Lệnh Camera: Thu nhỏ (-20%)', '', 'text-white');
+    });
+    document.querySelector('#btnCamFocusTop1')?.addEventListener('click', () => {
+      socket.emit('panel:camera-cmd', 'focusTop1');
+      appendEventLog('🎥', 'Lệnh Camera: Focus Top 1', leaderboard.length ? leaderboard[0].username : '', 'text-amber-300');
+    });
+
+    // Debug toggle
+    document.querySelector('#checkDebugOverlay')?.addEventListener('change', e => {
+      socket.emit('panel:debug-toggle', e.target.checked);
+      appendEventLog('🛠️', e.target.checked ? 'Đã bật hiển thị tâm căn' : 'Đã tắt tâm căn', '', 'text-white/70');
+    });
+
+    // Reset All
+    document.querySelector('#btnResetAll')?.addEventListener('click', () => {
+      if (confirm('Bạn có chắc muốn xóa tất cả cần thủ trên bờ câu để làm mới lại?')) {
+        socket.emit('demo:reset');
+        allPlayers = [];
+        leaderboard = [];
+        statTotalPlayers.textContent = '0';
+        statTop1.textContent = 'Chưa có';
+        renderLeaderboard([]);
+        updateTargetPlayerDropdown();
+        appendEventLog('⚠️', 'Đã xóa tất cả cần thủ', 'Bờ câu đã được làm mới sạch sẽ', 'text-rose-400');
+      }
+    });
+
+    /* ================= SOCKET EVENTS ================= */
+    socket.on('state:init', s => {
+      if (s.botRunning) {
+        setBotRunningUI(true, 50);
+        if (s.botStats) {
+          if (statBotGifts) statBotGifts.textContent = s.botStats.totalGifts || 0;
+          if (statBotCoins) statBotCoins.textContent = Number(s.botStats.totalCoins || 0).toLocaleString('vi-VN') + ' xu';
+        }
+      } else {
+        setBotRunningUI(false);
+      }
+
+      allPlayers = s.players || [];
+      statTotalPlayers.textContent = allPlayers.length;
+      renderLeaderboard(s.leaderboard || []);
+      updateTargetPlayerDropdown();
+
+      updateTikTokUIState(s);
+      if (s.voiceSpeed) setVoiceSpeedUI(s.voiceSpeed);
+    });
+
+    // TikTok Live Connection Controls
+    const inputTiktokUsername = document.querySelector('#inputTiktokUsername');
+    const btnConnectTiktok = document.querySelector('#btnConnectTiktok');
+    const btnDisconnectTiktok = document.querySelector('#btnDisconnectTiktok');
+    const panelTtBadge = document.querySelector('#panelTtBadge');
+    const panelTtRoomId = document.querySelector('#panelTtRoomId');
+
+    // Khôi phục username đã lưu
+    const savedTiktokUser = localStorage.getItem('tiktok_username') || '';
+    if (savedTiktokUser && inputTiktokUsername) {
+      inputTiktokUsername.value = savedTiktokUser;
+    }
+
+    btnConnectTiktok?.addEventListener('click', () => {
+      const username = (inputTiktokUsername?.value || '').replace(/^@/, '').trim();
+      if (!username) {
+        inputTiktokUsername?.focus();
+        return;
+      }
+      localStorage.setItem('tiktok_username', username);
+      panelTtBadge.className = 'text-[9.5px] px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/30 animate-pulse';
+      panelTtBadge.textContent = 'Đang kết nối...';
+      socket.emit('panel:tiktok-connect', { username });
+      appendEventLog('📡', `Đang kết nối tới phòng LIVE của @${username}`, 'Vui lòng chờ xác thực phòng...', 'text-cyan-300');
+    });
+
+    inputTiktokUsername?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        btnConnectTiktok?.click();
+      }
+    });
+
+    btnDisconnectTiktok?.addEventListener('click', () => {
+      socket.emit('panel:tiktok-disconnect');
+      appendEventLog('🔌', 'Đã yêu cầu ngắt kết nối TikTok', '', 'text-white/60');
+    });
+
+    function updateTikTokUIState(s) {
+      if (!s) return;
+      if (s.connected) {
+        ttLiveDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+        ttLiveStatus.textContent = `Đang LIVE • @${s.username}`;
+        if (panelTtBadge) {
+          panelTtBadge.className = 'text-[9.5px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-400/30';
+          panelTtBadge.textContent = `✅ Đang LIVE • @${s.username}`;
+        }
+        if (panelTtRoomId) panelTtRoomId.textContent = s.roomId || 'Active';
+        if (inputTiktokUsername && s.username) inputTiktokUsername.value = s.username;
+        btnConnectTiktok?.classList.add('hidden');
+        btnDisconnectTiktok?.classList.remove('hidden');
+      } else if (s.connecting) {
+        ttLiveDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
+        ttLiveStatus.textContent = `Đang kết nối @${s.username}...`;
+        if (panelTtBadge) {
+          panelTtBadge.className = 'text-[9.5px] px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/30 animate-pulse';
+          panelTtBadge.textContent = `Đang kết nối @${s.username}...`;
+        }
+        if (panelTtRoomId) panelTtRoomId.textContent = 'Đang lấy ID...';
+        btnConnectTiktok?.classList.remove('hidden');
+        btnDisconnectTiktok?.classList.add('hidden');
+      } else {
+        ttLiveDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+        ttLiveStatus.textContent = s.username ? `Chờ phát LIVE @${s.username}` : 'Chế độ Local Preview';
+        if (panelTtBadge) {
+          panelTtBadge.className = 'text-[9.5px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-400/30';
+          panelTtBadge.textContent = s.error ? `Chưa kết nối (${s.error})` : 'Chưa kết nối';
+        }
+        if (panelTtRoomId) panelTtRoomId.textContent = '-';
+        btnConnectTiktok?.classList.remove('hidden');
+        btnDisconnectTiktok?.classList.add('hidden');
+      }
+    }
+
+    socket.on('tiktok:status', s => {
+      updateTikTokUIState(s);
+      if (s.voiceSpeed) setVoiceSpeedUI(s.voiceSpeed);
+      if (s.connected) {
+        appendEventLog('🟢', `Đã kết nối phòng LIVE của @${s.username}`, `Room ID: ${s.roomId || ''}`, 'text-emerald-300');
+      } else if (s.error) {
+        appendEventLog('⏳', `Chưa kết nối TikTok`, s.error, 'text-amber-300');
+      }
+    });
+
+    socket.on('player:join', p => {
+      if (!allPlayers.some(x => x.id === p.id)) allPlayers.push(p);
+      statTotalPlayers.textContent = allPlayers.length;
+      updateTargetPlayerDropdown();
+      appendEventLog('🎣', `${p.username} đã vào bờ câu`, `ID: ${p.id}`, 'text-emerald-200');
+    });
+
+    socket.on('player:leave', data => {
+      allPlayers = allPlayers.filter(x => String(x.id) !== String(data.playerId));
+      statTotalPlayers.textContent = allPlayers.length;
+      updateTargetPlayerDropdown();
+      appendEventLog('👋', `${data.username || 'Cần thủ'} đã rời bờ sau 30s`, `ID: ${data.playerId}`, 'text-amber-300');
+    });
+
+    socket.on('leaderboard', list => {
+      renderLeaderboard(list);
+    });
+
+    socket.on('panel:stats', st => {
+      if (st.totalPlayers != null) statTotalPlayers.textContent = st.totalPlayers;
+      if (st.leaderboard) renderLeaderboard(st.leaderboard);
+    });
+
+    socket.on('panel:event-log', ev => {
+      if (ev.type === 'chat') {
+        appendEventLog('💬', `${ev.username}: "${ev.comment}"`, 'Đã bước vào bờ câu', 'text-cyan-200');
+      } else if (ev.type === 'catch') {
+        totalCatches++;
+        statTotalCatches.textContent = totalCatches;
+        appendEventLog('🎉', `${ev.username} KÉO ĐƯỢC ${ev.fish.name}!`, `+${ev.fish.points} điểm • ${ev.giftName || 'Thường'}`, 'text-emerald-300 font-bold');
+      } else if (ev.type === 'miss') {
+        appendEventLog('💦', `${ev.username} bị tuột cá rồi`, 'Cố gắng ở lượt tiếp theo!', 'text-white/50');
+      }
+    });
+
+    socket.on('fishing:catch', ev => {
+      totalCatches++;
+      statTotalCatches.textContent = totalCatches;
+    });
+
+    
+    /* ================= 50 BOTS STRESS TEST LOGIC ================= */
+    const botStatusDot = document.querySelector('#botStatusDot');
+    const botStatusText = document.querySelector('#botStatusText');
+    const statBotCount = document.querySelector('#statBotCount');
+    const statBotAps = document.querySelector('#statBotAps');
+    const statBotGifts = document.querySelector('#statBotGifts');
+    const statBotCoins = document.querySelector('#statBotCoins');
+    const btnStartBot50 = document.querySelector('#btnStartBot50');
+    const btnStopBot50 = document.querySelector('#btnStopBot50');
+    const sliderBotInterval = document.querySelector('#sliderBotInterval');
+    const labelBotInterval = document.querySelector('#labelBotInterval');
+    const sliderBotGiftRatio = document.querySelector('#sliderBotGiftRatio');
+    const labelBotGiftRatio = document.querySelector('#labelBotGiftRatio');
+
+    let isBotRunning = false;
+
+    function setBotRunningUI(running, count = 50) {
+      isBotRunning = running;
+      if (running) {
+        if (botStatusDot) botStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+        if (botStatusText) {
+          botStatusText.className = 'font-bold text-emerald-300';
+          botStatusText.textContent = 'Đang chạy (' + count + ' bot)';
+        }
+        if (btnStartBot50) {
+          btnStartBot50.disabled = true;
+          btnStartBot50.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        if (btnStopBot50) {
+          btnStopBot50.disabled = false;
+          btnStopBot50.classList.remove('opacity-40', 'cursor-not-allowed');
+        }
+      } else {
+        if (botStatusDot) botStatusDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+        if (botStatusText) {
+          botStatusText.className = 'font-bold text-white/70';
+          botStatusText.textContent = 'Chưa kích hoạt';
+        }
+        if (btnStartBot50) {
+          btnStartBot50.disabled = false;
+          btnStartBot50.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        if (btnStopBot50) {
+          btnStopBot50.disabled = true;
+          btnStopBot50.classList.add('opacity-40', 'cursor-not-allowed');
+        }
+        if (statBotAps) statBotAps.innerHTML = '0.0 <span class="text-[10px] font-normal text-emerald-300/70">nhịp/s</span>';
+      }
+    }
+
+    sliderBotInterval?.addEventListener('input', e => {
+      labelBotInterval.textContent = e.target.value + ' ms/lượt';
+    });
+    sliderBotGiftRatio?.addEventListener('input', e => {
+      labelBotGiftRatio.textContent = e.target.value + '% Quà';
+    });
+
+    sliderBotInterval?.addEventListener('change', () => {
+      if (isBotRunning) startBotEngine();
+    });
+    sliderBotGiftRatio?.addEventListener('change', () => {
+      if (isBotRunning) startBotEngine();
+    });
+
+    document.querySelectorAll('.botPresetBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sliderBotInterval.value = btn.dataset.interval;
+        labelBotInterval.textContent = btn.dataset.interval + ' ms/lượt';
+        sliderBotGiftRatio.value = btn.dataset.ratio;
+        labelBotGiftRatio.textContent = btn.dataset.ratio + '% Quà';
+        startBotEngine();
+      });
+    });
+
+    function startBotEngine() {
+      const intervalMs = Number(sliderBotInterval.value) || 380;
+      const giftRatio = (Number(sliderBotGiftRatio.value) || 50) / 100;
+      socket.emit('bot:start', { count: 50, intervalMs, giftRatio });
+      setBotRunningUI(true, 50);
+      appendEventLog('🤖', 'Kích hoạt 50 Bots Stress Test', 'Tần suất: ' + intervalMs + 'ms • Tỉ lệ quà: ' + Math.round(giftRatio * 100) + '%', 'text-purple-300 font-bold');
+    }
+
+    btnStartBot50?.addEventListener('click', startBotEngine);
+
+    btnStopBot50?.addEventListener('click', () => {
+      socket.emit('bot:stop');
+      setBotRunningUI(false);
+      appendEventLog('🛑', 'Đã dừng Bot Stress Test', 'Tất cả 50 bot tạm ngừng', 'text-amber-300');
+    });
+
+    socket.on('bot:status', s => {
+      setBotRunningUI(s.running, s.count);
+      if (s.count != null && statBotCount) statBotCount.textContent = s.count + ' / 50';
+    });
+
+    socket.on('bot:stats', st => {
+      if (st.running) setBotRunningUI(true, st.count);
+      if (st.count != null && statBotCount) statBotCount.textContent = st.count + ' / 50';
+      if (st.actionsPerSec != null && statBotAps) {
+        statBotAps.innerHTML = st.actionsPerSec + ' <span class="text-[10px] font-normal text-emerald-300/70">nhịp/s</span>';
+      }
+      if (st.totalGifts != null && statBotGifts) statBotGifts.textContent = st.totalGifts;
+      if (st.totalCoins != null && statBotCoins) statBotCoins.textContent = Number(st.totalCoins).toLocaleString('vi-VN') + ' xu';
+    });
+
+    socket.on('demo:reset', () => {
+      allPlayers = [];
+      leaderboard = [];
+      statTotalPlayers.textContent = '0';
+      statTop1.textContent = 'Chưa có';
+      renderLeaderboard([]);
+      updateTargetPlayerDropdown();
+    });
+  })();
+  </script>
+</body>
+</html>

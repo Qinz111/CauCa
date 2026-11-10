@@ -1,0 +1,29 @@
+{
+  "name": "tiktok-fishing-live",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron-main.cjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "app": "electron electron-main.cjs",
+    "dev": "node --watch server.js",
+    "test:bot": "node bot_test_50.cjs",
+    "test:scenarios": "node test_camera_scenarios.cjs",
+    "test:queue": "node test_priority_queue.cjs",
+    "test:weight": "node test_weight_and_cooldown.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.4",
+    "tiktok-live-connector": "^2.1.0"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3"
+  }
+}
